@@ -31,7 +31,7 @@ int getNumOfTags(){
 int addTag(int key, uid_t userId){
 
     tag_t* newTag;
-    newTag = kzalloc(sizeof(tag_t), GFP_KERNEL)
+    //newTag = kzalloc(sizeof(tag_t), GFP_KERNEL)
 
 
 
