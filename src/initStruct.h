@@ -34,7 +34,7 @@ typedef struct {
     pid_t creatorProc;
 
     //pointer a array per livelli
-    level_t *levels[32];
+    level_t **levels;
 } tag_t;
 
 

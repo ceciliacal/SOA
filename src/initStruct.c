@@ -38,13 +38,23 @@ void initLevels(level_t* levelsArray[N_LEVELS]){
 int addTag(int i){
 
     tag_t* newTag;
-    newTag = (tag_t*) kzalloc(sizeof(tag_t), GFP_KERNEL);
-
     level_t* levels[N_LEVELS];
+    level_t** levelsArray;
     
+    newTag = (tag_t*) kzalloc(sizeof(tag_t), GFP_KERNEL);
+    
+    //inizializzazione livelli
     initLevels(levels);
-    printk("dentro addTag (dopo initLevels): levels= %d\n",levels);
-    //printk("dentro addTag: newTag.levels= %d\n",newTag->levels);
+    levelsArray = levels;
+    
+    printk("dentro addTag: levels= %d\n",levels);
+    printk("dentro addTag:*levels= %d\n",*levels);
+
+    newTag->levels = levelsArray;
+    printk("dentro addTag: newTag->levels= %d\n",newTag->levels);
+
+    //inizializzazione id
+    
     
     return 1;
     
