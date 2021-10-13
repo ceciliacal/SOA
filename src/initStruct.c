@@ -113,32 +113,6 @@ int generateId(void){
 
 }
 
-int openTag(int key, uid_t currentUserId, pid_t processId){
-
-    int i;
-    tag_t* tag;
-
-    for(i=0;i<MAX_N_TAGS;i++){
-
-        //do something. check della chiave scorrendo array di tag
-        if (tagServiceArray[i]->key == key){
-
-            tag = tagServiceArray[i];
-            
-            if (currentUserId==tag->creatorUserId && processId == tag->creatorUserId ){
-
-                printk("dentro a opentag: tagServiceArray[0]->ID = %d\n",tag->ID);
-    
-                break;
-
-            }
-
-        }
-
-    }
-
-    return 0;
-}
 
 /*
 pid non lo considero perché non posso richiamare tag_ctl 2 volte, quindi solo la
@@ -147,7 +121,7 @@ il command, perche nel testo dice che permission è usato per indicare per quale
 il tag è stato CREATO, quindi in open permission è sempre 0
 
 */
-int openTag2(int key, uid_t currentUserId){
+int openTag(int key, uid_t currentUserId){
 
     int i;
     tag_t* tag;
@@ -195,88 +169,8 @@ int openTag2(int key, uid_t currentUserId){
     gia c'è (o restituisco -1 se il command è create)
 
 */
-int addTag(int key, uid_t userId, pid_t creatorProcessId){
 
-    tag_t* newTag;
-    level_t* levels[N_LEVELS];
-    level_t** levelsArray;
-
-    //controllo che non esiste già una chiave uguale (se key!=0)
-    /*
-    -se qui sto facendo CREATE, e c'è gia chiave uguale ritorno -1 (user
-    deve fare la OPEN con stessa chiave)
-    -se key = 0, istanzio tag e procedo. 
-
-    */
-    //
-    int i;
-    for(i=0;i<MAX_N_TAGS;i++){
-        printk("prima if: i=%d\n",i);
-        if (tagServiceArray[i]==NULL){
-            tagServiceArray[i] = newTag;
-            printk("tagServiceArray[0]=%d\n",tagServiceArray[0]);
-            break;
-        }
-
-    }
-    
-    newTag = (tag_t*) kzalloc(sizeof(tag_t), GFP_KERNEL);
-
-    newTag->key = key;
-    //gestire il fatto che permission può essere = 1 o =0
-    newTag->permission = 1; //todo: da cambiare!
-    newTag->creatorUserId = userId;         //se permission=1
-    newTag->creatorProc = creatorProcessId; 
-    printk("dentro addTag: newTag->creatorUserId= %d\n",newTag->creatorUserId);
-    printk("dentro addTag: newTag->creatorProc= %d\n",newTag->creatorProc);
-
-    //inizializzazione livelli
-    initLevels(levels);
-    levelsArray = levels;
-    
-    printk("dentro addTag: levels= %d\n",levels);
-    printk("dentro addTag:*levels= %d\n",*levels);
-
-    newTag->levels = levelsArray;
-    printk("dentro addTag: newTag->levels= %d\n",newTag->levels);
-    printk("dentro addTag: newTag->levels[5].num= %d\n",newTag->levels[5]->num);
-
-    //inizializzazione id
-    int id = generateId();
-    newTag->ID = id;
-    printk("newTag->ID = %d\n", newTag->ID);
-
-
-    if (key==0){
-
-        newTag->private = 1;
-    }
-    else{
-
-        newTag->private = 0;
-    }
-
-    printk("newTag-> private = %d\n", newTag->private);
-
-    //aggiunto di newTag all'array
-    printk("newTag=%d\n",newTag);
-    
-    for(i=0;i<MAX_N_TAGS;i++){
-        printk("prima if: i=%d\n",i);
-        if (tagServiceArray[i]==NULL){
-            tagServiceArray[i] = newTag;
-            printk("tagServiceArray[0]=%d\n",tagServiceArray[0]);
-            break;
-        }
-
-    }
-    
-    return 1;
-    
-}
-
-
-int addTag2(int key, uid_t userId, pid_t creatorProcessId, int perm){
+int addTag(int key, uid_t userId, pid_t creatorProcessId, int perm){
 
     //controllo che non esiste già una chiave uguale (se key!=0)
     /*
@@ -365,14 +259,9 @@ void initRandIdArray(void){
 }
 
 /*
-ma la chiave quindi deve essere unica?? quella che mi arriva dallo user,
-se ce n'è già una come faccio??
-
 se key sono uguali di 2 thread diversi (e key!=0) allora restituisco stesso tag
 mentre se key=0 i tag devono essere diversi. e se faccio ipc private NON POSSO FARE OPEN!
 quindi creo e basta il tag con key=0 e id generato randomicamente
-
-
 */
 
 
@@ -381,13 +270,16 @@ int init_module(void){
     initRandIdArray();
     level_t* levels[N_LEVELS];
     
-    addTag2(1,0,0,1);
-    addTag2(2,0,0,0);
-    int idtag= openTag2(1,0);
-    int idtag1= openTag2(2,1);
-    int idtag2= openTag2(1,1);
+    addTag(1,0,0,1);
+    addTag(1,0,0,1);
+    //addTag(2,0,0,0);
+    /*
+    int idtag= openTag(1,0);
+    int idtag1= openTag(2,1);
+    int idtag2= openTag(1,1);
+   
     printk("idtag=%d",idtag,"idtag1=%d",idtag1,"idtag2=%d\n",idtag2);
-    
+     */
     return 0;
 }
 

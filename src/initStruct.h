@@ -10,7 +10,8 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/random.h>
-
+#include <linux/cred.h>
+#include <linux/sched.h>
 #include <linux/slab.h>
 
 
@@ -38,5 +39,8 @@ typedef struct {
     //pointer a array per livelli
     level_t **levels;
 } tag_t;
+
+int addTag(int key, uid_t userId, pid_t creatorProcessId, int perm);
+int openTag(int key, uid_t currentUserId);
 
 
