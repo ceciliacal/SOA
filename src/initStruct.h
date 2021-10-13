@@ -9,6 +9,7 @@
 #include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/random.h>
 
 #include <linux/slab.h>
 
@@ -29,9 +30,10 @@ typedef struct{
 typedef struct {
     int key;
     //int permission;
-    uid_t permission;
+    uid_t creatorUserId;   //serve per permission
     int ID;
-    pid_t creatorProc;
+    int private;
+    pid_t creatorProc;  //serve per IPC (tag privato tra i thread di stesso processo)
 
     //pointer a array per livelli
     level_t **levels;

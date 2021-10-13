@@ -20,7 +20,6 @@ void initLevels(level_t* levelsArray[N_LEVELS]){
 
     for ( i=0;i<N_LEVELS;i++){
 
-
         levelsArray[i]= (level_t*) kzalloc(sizeof(level_t),GFP_KERNEL);
         levelsArray[i]->num=i+1;
         printk("levelsArray[%d]= %d    num=%d\n",i,levelsArray[i],levelsArray[i]->num);
@@ -63,10 +62,10 @@ void printArray(void){
 
     int i;
 
-    printk("randId: ");
+    printk("tagServiceArray: ");
     for (i=0;i<MAX_N_TAGS;i++){
 
-        printk("%d\n",randId[i]);
+        printk("%d\n",tagServiceArray[i]);
 
     }
 }
@@ -114,16 +113,64 @@ int generateId(void){
 
 }
 
+int openTag(int key, uid_t currentUserId, pid_t processId){
 
-//int addTag(int key, uid_t userId){
-int addTag(int key){
+    int i;
+    tag_t* tag;
+
+    for(i=0;i<MAX_N_TAGS;i++){
+
+        //do something. check della chiave scorrendo array di tag
+        if (tagServiceArray[i]->key == key){
+
+            tag = tagServiceArray[i];
+            
+            if (currentUserId==tag->creatorUserId && processId == tag->creatorUserId ){
+
+                printk("dentro a opentag: tagServiceArray[0]->ID = %d\n",tag->ID);
+    
+                break;
+
+            }
+
+        }
+
+    }
+
+    
+    printk("tagServiceArray[255]=%d\n",tagServiceArray[255]);
+    //printArray();
+
+    
+
+    return 0;
+
+}
+
+//int addTag(int key){
+/*
+    uid e pid in input vengono presi comunque lato kernel in TAG_GET usando kuid_t
+    l'utente che sta eseguendo thread e invoca tag get può essere cambiato modificando
+    l'euid facendo setuid. per testare
+
+    gestione concorrenza con lock: quando 2 thread differenti cercano di fare op
+    su stesso tag
+
+*/
+int addTag(int key, uid_t userId, pid_t creatorProcessId){
 
     tag_t* newTag;
     level_t* levels[N_LEVELS];
     level_t** levelsArray;
     
     newTag = (tag_t*) kzalloc(sizeof(tag_t), GFP_KERNEL);
-    
+
+    newTag->key = key;
+    newTag->creatorUserId = userId;
+    newTag->creatorProc = creatorProcessId;
+    printk("dentro addTag: newTag->creatorUserId= %d\n",newTag->creatorUserId);
+    printk("dentro addTag: newTag->creatorProc= %d\n",newTag->creatorProc);
+
     //inizializzazione livelli
     initLevels(levels);
     levelsArray = levels;
@@ -136,7 +183,6 @@ int addTag(int key){
     printk("dentro addTag: newTag->levels[5].num= %d\n",newTag->levels[5]->num);
 
     //inizializzazione id
-
     int id = generateId();
     newTag->ID = id;
     printk("newTag->ID = %d\n", newTag->ID);
@@ -152,6 +198,19 @@ int addTag(int key){
     }
 
     printk("newTag-> private = %d\n", newTag->private);
+
+    //aggiunto di newTag all'array
+    printk("newTag=%d\n",newTag);
+    int i;
+    for(i=0;i<MAX_N_TAGS;i++){
+        printk("prima if: i=%d\n",i);
+        if (tagServiceArray[i]==NULL){
+            tagServiceArray[i] = newTag;
+            printk("tagServiceArray[0]=%d\n",tagServiceArray[0]);
+            break;
+        }
+
+    }
     
     return 1;
     
@@ -167,14 +226,25 @@ void initRandIdArray(void){
     }
 }
 
+/*
+ma la chiave quindi deve essere unica?? quella che mi arriva dallo user,
+se ce n'è già una come faccio??
 
+se key sono uguali di 2 thread diversi (e key!=0) allora restituisco stesso tag
+mentre se key=0 i tag devono essere diversi. e se faccio ipc private NON POSSO FARE OPEN!
+quindi creo e basta il tag con key=0 e id generato randomicamente
+
+
+*/
 
 
 int init_module(void){
     
     initRandIdArray();
     level_t* levels[N_LEVELS];
-    addTag(1);
+    
+    addTag(1,0,0);
+    openTag(1,0,0);
     
     return 0;
 }
