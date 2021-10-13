@@ -137,17 +137,51 @@ int openTag(int key, uid_t currentUserId, pid_t processId){
 
     }
 
-    
-    printk("tagServiceArray[255]=%d\n",tagServiceArray[255]);
-    //printArray();
-
-    
-
     return 0;
+}
+
+/*
+pid non lo considero perché non posso richiamare tag_ctl 2 volte, quindi solo la
+prima volta che creo il tag e quindi non ho la open. Il permission=1 solo se è CREATE
+il command, perche nel testo dice che permission è usato per indicare per quale scopo
+il tag è stato CREATO, quindi in open permission è sempre 0
+
+*/
+int openTag2(int key, uid_t currentUserId){
+
+    int i;
+    tag_t* tag;
+
+    for(i=0;i<MAX_N_TAGS;i++){
+
+        //do something. check della chiave scorrendo array di tag
+        if (tagServiceArray[i]->key == key){
+
+            tag = tagServiceArray[i];
+            
+            if (tag->permission == 1 && tag->creatorUserId!=currentUserId){
+                printk("openTag: permission denied\n");
+                return -1;  //non ho permesso perche utente è diverso 
+
+            }
+            if (tag->private==1){   //non posso fare open di tag privato
+                printk("openTag: tag cannot be opened since it's private\n");
+                return -1;
+            }
+
+            printk("openTag: returning tag id = %d\n",tag->ID);
+            return tag->ID;
+
+        }
+
+    }
+
+
+    return 0;   //not found
 
 }
 
-//int addTag(int key){
+
 /*
     uid e pid in input vengono presi comunque lato kernel in TAG_GET usando kuid_t
     l'utente che sta eseguendo thread e invoca tag get può essere cambiato modificando
@@ -156,18 +190,43 @@ int openTag(int key, uid_t currentUserId, pid_t processId){
     gestione concorrenza con lock: quando 2 thread differenti cercano di fare op
     su stesso tag
 
+    devo fare pure controllo della chiave: se voglio aggiungere tag e metto key 2
+    e gia c'è un tag con key 2 allora non ne creo uno nuovo ma restituisco quello che 
+    gia c'è (o restituisco -1 se il command è create)
+
 */
 int addTag(int key, uid_t userId, pid_t creatorProcessId){
 
     tag_t* newTag;
     level_t* levels[N_LEVELS];
     level_t** levelsArray;
+
+    //controllo che non esiste già una chiave uguale (se key!=0)
+    /*
+    -se qui sto facendo CREATE, e c'è gia chiave uguale ritorno -1 (user
+    deve fare la OPEN con stessa chiave)
+    -se key = 0, istanzio tag e procedo. 
+
+    */
+    //
+    int i;
+    for(i=0;i<MAX_N_TAGS;i++){
+        printk("prima if: i=%d\n",i);
+        if (tagServiceArray[i]==NULL){
+            tagServiceArray[i] = newTag;
+            printk("tagServiceArray[0]=%d\n",tagServiceArray[0]);
+            break;
+        }
+
+    }
     
     newTag = (tag_t*) kzalloc(sizeof(tag_t), GFP_KERNEL);
 
     newTag->key = key;
-    newTag->creatorUserId = userId;
-    newTag->creatorProc = creatorProcessId;
+    //gestire il fatto che permission può essere = 1 o =0
+    newTag->permission = 1; //todo: da cambiare!
+    newTag->creatorUserId = userId;         //se permission=1
+    newTag->creatorProc = creatorProcessId; 
     printk("dentro addTag: newTag->creatorUserId= %d\n",newTag->creatorUserId);
     printk("dentro addTag: newTag->creatorProc= %d\n",newTag->creatorProc);
 
@@ -201,7 +260,7 @@ int addTag(int key, uid_t userId, pid_t creatorProcessId){
 
     //aggiunto di newTag all'array
     printk("newTag=%d\n",newTag);
-    int i;
+    
     for(i=0;i<MAX_N_TAGS;i++){
         printk("prima if: i=%d\n",i);
         if (tagServiceArray[i]==NULL){
@@ -215,6 +274,85 @@ int addTag(int key, uid_t userId, pid_t creatorProcessId){
     return 1;
     
 }
+
+
+int addTag2(int key, uid_t userId, pid_t creatorProcessId, int perm){
+
+    //controllo che non esiste già una chiave uguale (se key!=0)
+    /*
+    -se qui sto facendo CREATE, e c'è gia chiave uguale ritorno -1 (user
+    deve fare la OPEN con stessa chiave)
+    -se key = 0, istanzio tag e procedo. 
+
+    */
+    int i;
+
+    if (key!=0){
+
+        for(i=0;i<MAX_N_TAGS;i++){
+        
+            if (tagServiceArray[i]!=NULL&&tagServiceArray[i]->key==key){
+                printk("addTag: there is already a tag with key %d\n. Try again with OPEN command.\n",tagServiceArray[i]->key); 
+                return -1;
+            }
+        }
+    }
+
+    
+    tag_t* newTag;
+    level_t* levels[N_LEVELS];
+    level_t** levelsArray;
+
+    
+    newTag = (tag_t*) kzalloc(sizeof(tag_t), GFP_KERNEL);
+
+
+    if (perm==1){
+        newTag->permission = 1;
+    } 
+    else {
+        newTag->permission = 0;
+    }
+    
+    newTag->key = key;
+    newTag->creatorUserId = userId;         //per permission
+    newTag->creatorProc = creatorProcessId; //per private
+    printk("dentro addTag: newTag->creatorUserId= %d\n",newTag->creatorUserId);
+    printk("dentro addTag: newTag->creatorProc= %d\n",newTag->creatorProc);
+
+    //inizializzazione livelli
+    initLevels(levels);
+    levelsArray = levels;
+    
+    printk("dentro addTag: levels= %d\n",levels);
+    printk("dentro addTag:*levels= %d\n",*levels);
+
+    newTag->levels = levelsArray;
+    printk("dentro addTag: newTag->levels= %d\n",newTag->levels);
+    printk("dentro addTag: newTag->levels[5].num= %d\n",newTag->levels[5]->num);
+
+    //inizializzazione id
+    int id = generateId();
+    newTag->ID = id;
+    printk("newTag->ID = %d\n", newTag->ID);
+
+
+    //aggiunto di newTag all'array
+    printk("newTag=%d\n",newTag);
+    for(i=0;i<MAX_N_TAGS;i++){
+        printk("prima if: i=%d\n",i);
+        if (tagServiceArray[i]==NULL){
+            tagServiceArray[i] = newTag;
+            printk("tagServiceArray[0]=%d\n",tagServiceArray[0]);
+            break;
+        }
+
+    }
+    
+    return newTag->ID;
+    
+}
+
 
 
 void initRandIdArray(void){
@@ -243,8 +381,12 @@ int init_module(void){
     initRandIdArray();
     level_t* levels[N_LEVELS];
     
-    addTag(1,0,0);
-    openTag(1,0,0);
+    addTag2(1,0,0,1);
+    addTag2(2,0,0,0);
+    int idtag= openTag2(1,0);
+    int idtag1= openTag2(2,1);
+    int idtag2= openTag2(1,1);
+    printk("idtag=%d",idtag,"idtag1=%d",idtag1,"idtag2=%d\n",idtag2);
     
     return 0;
 }

@@ -29,7 +29,7 @@ typedef struct{
 
 typedef struct {
     int key;
-    //int permission;
+    int permission;
     uid_t creatorUserId;   //serve per permission
     int ID;
     int private;
