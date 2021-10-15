@@ -27,7 +27,7 @@ int get_tag(int key, int command, int permission){
         //uid_t uid = getuid_call();
         pid_t pid = current->pid;
         tagId = addTag(key, uid, pid, permission);
-        printk("CREATE: tagId = %d\n",tagId);
+        printk("in my_sc: CREATE -> tagId = %d\n",tagId);
 
     }
     else{   //open
