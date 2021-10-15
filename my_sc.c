@@ -1,9 +1,8 @@
 #include "./include/initStruct.h"
-#include "./include/my_sc.h"
 
 MODULE_LICENSE("GPL");
 
-int get_tag(int key, int command, int permission){
+int tag_get(int key, int command, int permission){
 	
     /*
     fai i check se tipo hai key=0 e open, ecc.
@@ -49,11 +48,15 @@ Ma se io voglio testare modulo user mode prima per forza devo montare
 la syscall nella syscall table?????????????
 */
 
+/*
 int init_module(void){
     
     printk("dentro my_sc: in init_module\n");
-    int id = get_tag(1,1,0);
-    
+    int id = get_tag(1,CREATE,NO_PERMISSION);
+    int id1 = get_tag(1,CREATE,PERMISSION);
+    int id2 = get_tag(0,CREATE,PERMISSION);
+    int id3 = get_tag(0,CREATE,PERMISSION);
+    printk("dentro my_sc: in init_module -> id=%d  id1=%d  id2=%d  id3=%d\n",id,id1,id2,id3);
 
     return 0;  
     
@@ -65,3 +68,4 @@ void cleanup_module(void){
     printk("CLEANUP!\n");
     
 }
+*/

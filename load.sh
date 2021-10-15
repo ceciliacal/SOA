@@ -1,2 +1,2 @@
-echo "running command: sudo insmod the_sc.ko"
+echo "running command: sudo insmod the_usctm.ko"
 sudo insmod the_sc.ko
