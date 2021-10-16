@@ -18,7 +18,7 @@ void initLevels(level_t* levelsArray[N_LEVELS]){
 
         levelsArray[i]= (level_t*) kzalloc(sizeof(level_t),GFP_KERNEL);
         levelsArray[i]->num=i+1;
-        printk("levelsArray[%d]= %d    num=%d\n",i,levelsArray[i],levelsArray[i]->num);
+        //printk("levelsArray[%d]= %d    num=%d\n",i,levelsArray[i],levelsArray[i]->num);
 
     }
 

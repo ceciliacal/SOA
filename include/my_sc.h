@@ -5,6 +5,6 @@
 #include <linux/cred.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
+#include "const.h"
 
-#define CREATE 1
-#define OPEN 0
+int tag_get(int key, int command, int permission);

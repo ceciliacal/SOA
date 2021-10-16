@@ -1,7 +1,3 @@
-//#include <unistd.h>
-//#include <stdio.h>
-//#include <pthread.h>
-//#include <stdlib.h>
 #include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -9,11 +5,8 @@
 #include <linux/cred.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
+#include "const.h"
 
-
-#define MAX_N_TAGS 256
-#define N_LEVELS 32
-#define MAX_MSG_SIZE 4096
 
 typedef struct{
     //array msg
