@@ -10,8 +10,8 @@ int tag_get(int key, int command, int permission){
     siano effettivamente 0 o 1
     */
 
-   printk("Dentro get_tag\n");
-
+    printk("Dentro get_tag\n Inizializzazione del servizio...\n");
+    
     
     int tagId;
     
@@ -20,7 +20,7 @@ int tag_get(int key, int command, int permission){
     kuid_t uid = cred->uid;
 
    
-    serviceInitialization();
+    //serviceInitialization();
     if (command==1){    //create
 
         //uid_t uid = getuid_call();
@@ -33,6 +33,7 @@ int tag_get(int key, int command, int permission){
         tagId = openTag(key, uid);
 
     }
+    printk("====== end tag_get with %d ======\n",tagId);
 
     return tagId;
     

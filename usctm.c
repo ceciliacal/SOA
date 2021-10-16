@@ -223,7 +223,7 @@ int init_module(void) {
 #endif
 
 
-    printk("%s: Module correctly mounted\n",MODNAME);
+    printk("%s: Module correctly mounted TAG_GET\n",MODNAME);
     return 0;
 }
 

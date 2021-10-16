@@ -29,6 +29,8 @@ void initLevels(level_t* levelsArray[N_LEVELS]){
     //return *levelsArray;
 }
 
+//qua va messo lock perche sto controllando che non ci sia stesso numero randomico
+//all'interno dell'array randId perché id deve essere univoco
 int checkRand(int num){
 
     int i;
@@ -43,7 +45,7 @@ int checkRand(int num){
 
     for (i=0;i<MAX_N_TAGS;i++){
 
-        if (randId[i]==-1){
+        if (randId[i]==0){
             randId[i] = num;
             return 1;
         }
@@ -66,13 +68,17 @@ void printArray(void){
     }
 }
 
+/*todo: miglioramento -> fai lower bound in modo che non ce bisogno di inizializzare
+tutto l'array a -1 e il controllo in checkrand lo faccio se la casella è uguale a 0 o null 
+*/
 int createId(void){
 
     int rand, res;
     generateRandomId:
         rand = 0;
-        get_random_bytes(&rand, sizeof(int)-1);
-        rand%=256;
+        get_random_bytes(&rand, sizeof(int)-1); //excluding negative numbers 
+        rand++;         //excluding 0
+        rand%=256;      //upper bound is 256
 
         printk("rand = %d\n", rand);
 
@@ -122,9 +128,11 @@ int openTag(int key, kuid_t currentUserId){
     int i;
     tag_t* tag;
 
+    //va messo LOCK prima del for perché faccio subito check della chiave
     for(i=0;i<MAX_N_TAGS;i++){
 
         //do something. check della chiave scorrendo array di tag
+        
         if (tagServiceArray[i]->key == key){
 
             tag = tagServiceArray[i];
@@ -179,6 +187,7 @@ int addTag(int key, kuid_t userId, pid_t creatorProcessId, int perm){
 
     if (key!=0){
 
+        //va messo LOCK
         for(i=0;i<MAX_N_TAGS;i++){
         
             if (tagServiceArray[i]!=NULL&&tagServiceArray[i]->key==key){
@@ -215,11 +224,11 @@ int addTag(int key, kuid_t userId, pid_t creatorProcessId, int perm){
     levelsArray = levels;
     
     printk("dentro addTag: levels= %d\n",levels);
-    printk("dentro addTag:*levels= %d\n",*levels);
+    //printk("dentro addTag:*levels= %d\n",*levels);
 
     newTag->levels = levelsArray;
     printk("dentro addTag: newTag->levels= %d\n",newTag->levels);
-    printk("dentro addTag: newTag->levels[5].num= %d\n",newTag->levels[5]->num);
+    //printk("dentro addTag: newTag->levels[5].num= %d\n",newTag->levels[5]->num);
 
     //inizializzazione id
     int id = generateId();
@@ -228,12 +237,17 @@ int addTag(int key, kuid_t userId, pid_t creatorProcessId, int perm){
 
 
     //aggiunto di newTag all'array
-    printk("newTag=%d\n",newTag);
+    //ANCHE qui va usato lock
+    printk("newTag:\n");
     for(i=0;i<MAX_N_TAGS;i++){
-        printk("prima if: i=%d\n",i);
+        //printk("prima if: i=%d\n",i);
+        if (tagServiceArray[i]!=NULL){
+            printk("tagServiceArray[%d]=%d\n",i,tagServiceArray[i]->ID);
+        }
+        
         if (tagServiceArray[i]==NULL){
             tagServiceArray[i] = newTag;
-            printk("tagServiceArray[0]=%d\n",tagServiceArray[0]);
+            printk("tagServiceArray[%d]=%d\n",i,tagServiceArray[i]->ID);
             break;
         }
 
@@ -250,8 +264,9 @@ void initRandIdArray(void){
 
     for (i=0;i<MAX_N_TAGS;i++){
         randId[i] = -1;
-        //printk("randId[%d] = %d\n", i, randId[i]);
     }
+
+    return;
 }
 
 /*
@@ -261,7 +276,15 @@ quindi creo e basta il tag con key=0 e id generato randomicamente
 */
 
 void serviceInitialization(void){
-    initRandIdArray();
+    printk("dentro serviceInitialization: randId[0]=%d\n",randId[0]);
+    if (randId[0]!=0){
+        printk("DOPO IF dentro serviceInitialization: randId[0]=%d\n",randId[0]);
+        return;
+    }
+    else{
+        initRandIdArray();
+    }
+    return;
 }
 
 /*
