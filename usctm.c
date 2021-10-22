@@ -188,6 +188,7 @@ static unsigned long sys_tag_get = (unsigned long) __x64_sys_tag_get;
 
 // ---------------------------------------------------------------------------------------------------------------------
 
+/*
 int init_module(void) {
 
     int i,j;
@@ -242,3 +243,5 @@ void cleanup_module(void) {
     printk("%s: Shutting down\n",MODNAME);
 
 }
+*/
+

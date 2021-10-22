@@ -29,13 +29,11 @@ int main(int argc, char** argv){
     */
 
   
-    // Let us create three threads
     for (i = 0; i < 5; i++){
         pthread_create(&tid, NULL, myThreadFun, (void *)&tid);
         printf("dopo for i=%d\n", i);
     }
         
-    //
 
     /*
     int id = syscall(134,1,CREATE,NO_PERMISSION);

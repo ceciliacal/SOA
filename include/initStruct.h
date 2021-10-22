@@ -5,6 +5,10 @@
 #include <linux/cred.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
+#include <linux/spinlock.h>
+#include <linux/uaccess.h>
+#include <linux/string.h>
+#include <linux/wait.h>
 #include "const.h"
 
 
@@ -13,7 +17,7 @@ typedef struct{
     //pointer a array tid in attesa
     char *msg;
     int num;
-    //pthread_t *waitingThreads;
+    wait_queue_head_t* waitingThreads;
 
 } level_t;
 
@@ -32,5 +36,7 @@ typedef struct {
 int addTag(int key, kuid_t userId, pid_t creatorProcessId, int perm);
 int openTag(int key, kuid_t currentUserId);
 void serviceInitialization(void);
+int deliverMsg(int tagId, char* msg, int level, size_t size);
+void addElemToLevel(void);
 
 

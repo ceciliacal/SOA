@@ -52,6 +52,7 @@ The operation can fail also because of the delivery of a Posix signal
  to the thread while the thread is waiting for the message.
 */
 
+
 int tag_send(int tag, int level, char* buffer, size_t size){
 
     char* msg;
@@ -67,11 +68,14 @@ int tag_send(int tag, int level, char* buffer, size_t size){
 
     printk("buffer. buffer =%s\n",buffer);
     msg = (char*) kzalloc(sizeof(char)*size, GFP_KERNEL);
+    //copy_from_user(msg, buffer, size);
     strcpy(msg, buffer);
     printk("msg allocato. msg =%s\n",msg);
 
+    deliverMsg(tag, msg, level, size);
+    //addElemToLevel();
+    
     return 0;
-
 
 }
 
@@ -87,9 +91,11 @@ int init_module(void){
     int id3 = tag_get(0,CREATE,PERMISSION);
     printk("dentro my_sc: in init_module -> id=%d  id1=%d  id2=%d  id3=%d\n",id,id1,id2,id3);
 
-    int retSend = tag_send(1, 1, "ciao", 5);
+    int retSend = tag_send(id, 1, "ciao", 5);
     printk("dentro my_sc: retSend= %d\n", retSend);
     return 0;  
+
+    
     
 }
 
