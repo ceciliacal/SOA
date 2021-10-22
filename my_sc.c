@@ -73,7 +73,6 @@ int tag_send(int tag, int level, char* buffer, size_t size){
     printk("msg allocato. msg =%s\n",msg);
 
     deliverMsg(tag, msg, level, size);
-    //addElemToLevel();
     
     return 0;
 
