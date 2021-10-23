@@ -11,6 +11,7 @@ tag_t *tagServiceArray[MAX_N_TAGS];
 int randId[MAX_N_TAGS];
 
 static spinlock_t tagLock;
+static spinlock_t randIdLock;
 
 
 void addElemToLevel(void){
@@ -50,6 +51,7 @@ void initLevels(level_t* levelsArray[N_LEVELS]){
 
         levelsArray[i]= (level_t*) kzalloc(sizeof(level_t),GFP_KERNEL);
         levelsArray[i]->num=i+1;
+        levelsArray[i]->numThreads = 0;
         
         wait_queue_head_t* myQueue;
         myQueue = kzalloc(sizeof(wait_queue_head_t), GFP_KERNEL);
@@ -76,22 +78,22 @@ int checkRand(int num){
 
     int i;
 
+    spin_lock(&randIdLock);
     for (i=0;i<MAX_N_TAGS;i++){
 
         if (randId[i]==num){
+            spin_unlock(&randIdLock);
             return 0;
         }
 
-    }
-
-    for (i=0;i<MAX_N_TAGS;i++){
-
         if (randId[i]==0){
             randId[i] = num;
+            spin_unlock(&randIdLock);
             return 1;
         }
 
     }
+    spin_unlock(&randIdLock);
 
     return -1;
 
@@ -330,35 +332,81 @@ tag_t* getTagFromID(int id){
     return NULL;
 }
 
+int checkCorrectCondition(tag_t* tag, kuid_t currentUserId){
+
+    if (tag->ID == -1){
+        printk("errore. tag ha ID -1\n");
+        return -1;
+    }
+
+    if (tag->permission == 1 && tag->creatorUserId.val != currentUserId.val){
+        printk("errore. Utente %d non ha permesso di utilizzare questo tag\n", currentUserId);
+        return -1;
+    }
+
+    return 0;
+
+}
+
+int checkBufferSize(size_t size){
+
+    if (size > MAX_MSG_SIZE){
+        printk("ERROR: msg size exceeded maximum lenght");
+        return -1;
+    }
+
+    if (size == 0){
+        size = 1;
+    }
+
+    return 0;
+
+}
+
+level_t* getLevel(tag_t* tag, int levelNumber){
+
+
+    level_t** tagLevels= tag->levels;
+    return tagLevels[levelNumber-1];
+
+
+
+
+}
 
 /*
-rifai check permessi, se livello è nel range ecc
+todo: ragionare sul fatto di tenere struttura dati separata tra info dei tag
+e i tag veri e propri. Cioè se metto array che contiene le info con gli ID randomici
+che ho gia creato e poi la riaccedo tipo per controllarla nella tag send/rcv/ctl ???
+però non dovrei mettere un lock che comunque fa si che mentre controllo l'array con le info
+questo non venga aggiornato???
+probabilmente sì a questo punto il vantaggio non ce l'ho
+
+vedi lock da mettere (send bloccante !!!)
+
 */
 int deliverMsg(int tagId, char* msg, int level, size_t size, kuid_t currentUserId){
     
     tag_t* currTag; //get tag from ID
+    int preCheck;
 
-    if (level<0 || level>32){
+    //questo lo lascio qua cosi se livello sbagliato manco cerco tag
+    if (level<1 || level>32){
         printk("errore. Livello inserito è errato\n");
         return -1;
     }
 
     currTag = getTagFromID(tagId);
     
-    
-    if (currTag->ID == -1){
-        printk("errore. tag ha ID -1\n");
+    preCheck = checkCorrectCondition(currTag, currentUserId);
+
+    if (preCheck == -1){
         return -1;
     }
-
-    if (currTag->permission == 1 && currTag->creatorUserId != currentUserId){
-        printk("errore. Utente %d non ha permesso di utilizzare questo tag\n", currentUserId);
-        return -1;
-    }
-
-
+   
     printk("dentro deliverMsg: recuperato tag con ID %d a indirizzo %d\n",tagId,currTag);
 
+/*
     level_t** tagLevels= currTag->levels;
     printk("dentro deliverMsg: tagLevels= %d\n",tagLevels);
     printk("dentro deliverMsg: tagLevels[0]->num = %d\n", tagLevels[0]->num);
@@ -370,12 +418,14 @@ int deliverMsg(int tagId, char* msg, int level, size_t size, kuid_t currentUserI
 
     strcpy(tagLevels[level-1]->msg,msg);
     printk("dentro deliverMsg: tagLevels[level-1]->msg = %s\n",tagLevels[level-1]->msg);
+*/
 
-    /*
-    Ora devo creare lista thread in attesa e mandare un segnale
-    che gli è arrivato msg dove funzione handler del segnale è la 
-    receive (che sveglia i thread nella lista e leggono il msg)
-    */
+    level_t* currLevel = getLevel(currTag, level);
+    currLevel->msg = (char*) kzalloc(sizeof(char)*size, GFP_KERNEL);
+    strcpy(currLevel->msg,msg);
+    printk("dentro deliverMsg: currLevel->msg = %s\n",currLevel->msg);
+
+
 
     //=====wait queue=====
     printk("dentro deliverMsg: tagLevels[level-1]->waitingThreads = %d\n",tagLevels[level-1]->waitingThreads);
@@ -406,17 +456,6 @@ mentre se key=0 i tag devono essere diversi. e se faccio ipc private NON POSSO F
 quindi creo e basta il tag con key=0 e id generato randomicamente
 */
 
-void serviceInitialization(void){
-    printk("dentro serviceInitialization: randId[0]=%d\n",randId[0]);
-    if (randId[0]!=0){
-        printk("DOPO IF dentro serviceInitialization: randId[0]=%d\n",randId[0]);
-        return;
-    }
-    else{
-        initRandIdArray();
-    }
-    return;
-}
 
 /*
 

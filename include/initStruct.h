@@ -13,10 +13,10 @@
 
 
 typedef struct{
-    //array msg
-    //pointer a array tid in attesa
+    
     char *msg;
     int num;
+    int numThreads;
     wait_queue_head_t* waitingThreads;
 
 } level_t;
@@ -36,7 +36,10 @@ typedef struct {
 int addTag(int key, kuid_t userId, pid_t creatorProcessId, int perm);
 int openTag(int key, kuid_t currentUserId);
 void serviceInitialization(void);
-int deliverMsg(int tagId, char* msg, int level, size_t size);
+int deliverMsg(int tagId, char* msg, int level, size_t size, kuid_t currentUserId);
 void addElemToLevel(void);
+int checkCorrectCondition(tag_t* tag, kuid_t currentUserId);
+tag_t* getTagFromID(int id);
+int checkBufferSize(size_t size);
 
 
