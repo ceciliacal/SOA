@@ -11,10 +11,11 @@ MODULE_LICENSE("GPL");
 
 tag_t *tagServiceArray[MAX_N_TAGS];
 int global_nextId = 0;
+int global_numTag = 0;
 
 static spinlock_t tagLock;
 
-void initLevels(level_t* levelsArray[N_LEVELS]){
+void initLevels(level_t* levelsArray[N_LEVELS],spinlock_t levelLocks[N_LEVELS]){
 
     int i;
 
@@ -22,7 +23,8 @@ void initLevels(level_t* levelsArray[N_LEVELS]){
 
         levelsArray[i]= (level_t*) kzalloc(sizeof(level_t),GFP_KERNEL);
         levelsArray[i]->num=i+1;
-        levelsArray[i]->numThreads = 0;
+        spin_lock_init(&levelLocks[i]);
+        
         
         wait_queue_head_t* myQueue;
         myQueue = kzalloc(sizeof(wait_queue_head_t), GFP_KERNEL);
@@ -56,11 +58,12 @@ int openTag(int key, kuid_t currentUserId){
     int i;
     tag_t* tag;
 
+    //todo: check permessi 
+
     //va messo LOCK prima del for perché faccio subito check della chiave
     spin_lock(&tagLock);
     for(i=0;i<MAX_N_TAGS;i++){
 
-        //do something. check della chiave scorrendo array di tag
         
         if (tagServiceArray[i]->key == key){
 
@@ -119,19 +122,105 @@ void printArray(void){
     printk("\n\n");
 }
 
+int waitForMessage(int tag,int myLevel, char* buffer, size_t size, kuid_t uid){
+    
+    int res;
+    tag_t* currTag; //get tag from ID
+    int level = myLevel-1;
+
+    currTag = getTagFromID(tag);
+    if(checkCorrectCondition(currTag, uid)==-1){
+        return -1;
+    }
+
+    printk("dentro waitForMessage: recuperato tag con ID %d a indirizzo %d\n",tag,currTag);
+
+    level_t** tagLevels= currTag->levels;
+
+    //ora metto thread in attesa di un msg 
+
+    //+1 thread in sleep
+    __sync_fetch_and_add(&currTag->numThreads, +1);
+
+    res = wait_event_interruptible(*tagLevels[level]->waitingThreads,tagLevels[level]->msg!=NULL);
+    printk("dentro waitForMessage: risvegliati %d thread dalla wait queue!!!!!!!!!\n",currTag->numThreads);
+
+    if (res == 0){
+        //-1 thread in sleep
+        __sync_fetch_and_add(&currTag->numThreads, -1);
+    }
+
+    if (res == -ERESTARTSYS){
+        printk("dentro waitForMessage: receiver thread was interrupted by a signal");
+        return -1;
+    }
+
+    //recupero msg (cioè cosa faccio dopo che thread è stato svegliato)
+    // da field del livello
+    strcpy(tagLevels[level]->msg,buffer);
+    printk("dentro deliverMsg: messaggio ricevuto dal thread %d è: %s\n",uid.val, buffer);
+    //copy to user
+
+    //if thread si è svegliato per send o per segnale posix
+
+    return 0;
+    
+
+}
+/*
+todo: per array di lock posso fare un array dove nella struct (o dei tag)
+o dell'array di lock mantengo posizione di dove sta il tag oppure proprio
+un puntatore al tag stesso
+
+faccio array di spinlock e nella struct del tag mantengo indice  
+
+metti come id posizione in tagArray
+fai un array di 256 spinlock e 256 array da 32 spinlock
+
+perche mi serve lock del singolo tag: ad esempio se ho 
+    -due send su stesso livello: devo mettere lock su stesso livello
+    -lettura di numThreads nel tag: mi serve lock sul singolo tag
+    -remove del tag: mi serve lock su singolo tag
+*/
+
 int removeTag(int tag){
+
+    //todo: mettere permessi per check utente
 
     int i;
     spin_lock(&tagLock);
     printk("\nin removeTag: \n");
+
+    if (global_numTag<1){
+        printk("Errore in removeTag: non ci sono tag da rimuovere, inserirne almeno uno prima.\n");
+        return -1;
+    }
+
     for(i=0;i<MAX_N_TAGS;i++){
+
         printk("tagServiceArray[%d]->ID = %d\n", i,tagServiceArray[i]->ID);
+        
         if (tagServiceArray[i]->ID==tag){
-            printk("sto nell if con ID = %d\n",tagServiceArray[i]->ID);   
-            tagServiceArray[i] = NULL;
-            kfree(tagServiceArray[i]);
-            spin_unlock(&tagLock);
-            return 0;
+
+            printk("sto nell if con ID = %d\n",tagServiceArray[i]->ID);
+            
+            //check se ci sono thread nella wq
+            if (tagServiceArray[i]->numThreads==0){
+
+                //todo: fare free dei livelli
+
+                tagServiceArray[i] = NULL;
+                kfree(tagServiceArray[i]);
+                __sync_fetch_and_add(&global_numTag, -1);
+                spin_unlock(&tagLock);
+                return 0;
+
+            }
+            else{
+                printk("RemoveTag: ERRORE ci sono %d thread nella wait queue\n",tagServiceArray[i]->numThreads);
+            }
+            
+        
         }
 
     }
@@ -151,6 +240,11 @@ int addTag(int key, kuid_t userId, pid_t creatorProcessId, int perm){
 
     */
     int i;
+
+    if (global_numTag>MAX_N_TAGS){
+        printk("Errore in addTag: il numero dei tag presenti nel servizio ha raggiunto il limite di 256.\n");
+        return -1;
+    }
 
     if (key!=0){
 
@@ -173,7 +267,8 @@ int addTag(int key, kuid_t userId, pid_t creatorProcessId, int perm){
     
     tag_t* newTag;
     level_t** levelsArray = (level_t**) kzalloc(sizeof(level_t*)*N_LEVELS,GFP_KERNEL);
-    
+    //spinlock_t** levelLocksArray = (spinlock_t**) kzalloc(sizeof(spinlock_t)*N_LEVELS,GFP_KERNEL);
+
     newTag = (tag_t*) kzalloc(sizeof(tag_t), GFP_KERNEL);
     if (perm==1){
         newTag->permission = 1;
@@ -185,16 +280,13 @@ int addTag(int key, kuid_t userId, pid_t creatorProcessId, int perm){
     newTag->key = key;
     newTag->creatorUserId = userId;         //per permission
     newTag->creatorProc = creatorProcessId; //per private
+    newTag->numThreads = 0;                 //n threads nelle 32 wq
     printk("dentro addTag: newTag->creatorUserId= %d\n",newTag->creatorUserId);
     printk("dentro addTag: newTag->creatorProc= %d\n",newTag->creatorProc);
 
     //inizializzazione livelli
-    /*
-    initLevels(levels);
-    levelsArray = levels;
-    */
+    initLevels(levelsArray, newTag->levelLocks);
 
-    initLevels(levelsArray);
     
     printk("dentro addTag: levels= %d\n",levelsArray);
     //printk("dentro addTag:*levels= %d\n",*levels);
@@ -205,16 +297,6 @@ int addTag(int key, kuid_t userId, pid_t creatorProcessId, int perm){
     
 
     //inizializzazione id
-    /*
-    TODO: io qui dovrei mettere prima lock su randId poi metterlo su
-    array di tag e poi sbloccarli entrambi (prima array poi rand) una volta
-    aggiunto il tag
-
-    */
-    //int id = generateId();
-    //newTag->ID = id;
-
-
     __sync_fetch_and_add(&global_nextId, +1);
     newTag->ID = global_nextId;
     printk("newTag->ID = %d\n", newTag->ID);
@@ -233,6 +315,7 @@ int addTag(int key, kuid_t userId, pid_t creatorProcessId, int perm){
         
         if (tagServiceArray[i]==NULL){
             tagServiceArray[i] = newTag;
+            __sync_fetch_and_add(&global_numTag, +1);
             printk("tagServiceArray[%d]=%d\n",i,tagServiceArray[i]->ID);
             break;
         }
@@ -244,12 +327,6 @@ int addTag(int key, kuid_t userId, pid_t creatorProcessId, int perm){
     
 }
 
-/*
-TODO: mantenere var globale che incrementa numero di tag in modo
-che non vada oltre MAX_N_TAGS e il for lo posso fare usando quella
-
-
-*/
 
 tag_t* getTagFromID(int id){
 
@@ -276,20 +353,12 @@ level_t* getLevel(tag_t* tag, int levelNumber){
 }
 
 /*
-todo: ragionare sul fatto di tenere struttura dati separata tra info dei tag
-e i tag veri e propri. Cioè se metto array che contiene le info con gli ID randomici
-che ho gia creato e poi la riaccedo tipo per controllarla nella tag send/rcv/ctl ???
-però non dovrei mettere un lock che comunque fa si che mentre controllo l'array con le info
-questo non venga aggiornato???
-probabilmente sì a questo punto il vantaggio non ce l'ho
-
 vedi lock da mettere (send bloccante !!!)
 
 */
 int deliverMsg(int tagId, char* msg, int level, size_t size, kuid_t currentUserId){
     
     tag_t* currTag; //get tag from ID
-    int preCheck;
 
     //questo lo lascio qua cosi se livello sbagliato manco cerco tag
     if (level<1 || level>32){
@@ -297,42 +366,30 @@ int deliverMsg(int tagId, char* msg, int level, size_t size, kuid_t currentUserI
         return -1;
     }
 
+    //qui lock su tag non dovrebbe servire
     currTag = getTagFromID(tagId);
-    
-    preCheck = checkCorrectCondition(currTag, currentUserId);
 
-    if (preCheck == -1){
+    if (checkCorrectCondition(currTag, currentUserId) == -1){
         return -1;
     }
    
     printk("dentro deliverMsg: recuperato tag con ID %d a indirizzo %d\n",tagId,currTag);
-
-/*
-    level_t** tagLevels= currTag->levels;
-    printk("dentro deliverMsg: tagLevels= %d\n",tagLevels);
-    printk("dentro deliverMsg: tagLevels[0]->num = %d\n", tagLevels[0]->num);
-    printk("dentro deliverMsg: tagLevels[0]->msg = %s\n", tagLevels[0]->msg);
-
-    tagLevels[level-1]->msg = (char*) kzalloc(sizeof(char)*size, GFP_KERNEL);
-    printk("dentro deliverMsg: tagLevels[level-1]->msg = %s\n", tagLevels[level-1]->msg);
-    printk("dentro deliverMsg: msg= %s\n", msg);
-
-    strcpy(tagLevels[level-1]->msg,msg);
-    printk("dentro deliverMsg: tagLevels[level-1]->msg = %s\n",tagLevels[level-1]->msg);
-*/
-
+    
     level_t* currLevel = getLevel(currTag, level);
     currLevel->msg = (char*) kzalloc(sizeof(char)*size, GFP_KERNEL);
+
+    spin_lock(&currTag->levelLocks[level-1]);
+    
+    //copy from user
     strcpy(currLevel->msg,msg);
     printk("dentro deliverMsg: currLevel->msg = %s\n",currLevel->msg);
 
-
-
     //=====wait queue=====
     printk("dentro deliverMsg: currLevel->waitingThreads = %d\n",currLevel->waitingThreads);
-
     //qui bisogna svegliare i threads
     wake_up_interruptible(currLevel->waitingThreads);
+    
+    spin_unlock(&currTag->levelLocks[level-1]);
 
     return 0;
 

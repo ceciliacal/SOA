@@ -20,8 +20,13 @@ int checkCorrectCondition(tag_t* tag, kuid_t currentUserId){
 
 int checkBufferSize(size_t size){
 
-    if (size > MAX_MSG_SIZE){
-        printk("ERROR: msg size exceeded maximum lenght");
+    if (size<0){
+        printk("ERROR: insert msg size between 0 and %d\n",MAX_MSG_SIZE);
+        return -1;
+    }
+
+    if (size>MAX_MSG_SIZE){
+        printk("ERROR: msg size exceeded maximum lenght\n");
         return -1;
     }
 

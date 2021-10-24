@@ -42,6 +42,19 @@ int tag_get(int key, int command, int permission){
     
 }
 
+/*
+int tag_ctl(int tag, int command),
+this system call allows the caller to control the TAG service with tag
+as descriptor according to command that can be either AWAKE_ALL 
+(for awaking all the threads waiting for messages, independently of the level),
+or REMOVE(for removing the TAG service from the system). 
+A TAG service cannot be removed if there are threads waiting for messages on it.
+By default, at least 256 TAG services should be allowed to be handled by software. 
+Also, the maximum size of the handled message should be of at least 4 KB.
+*/
+
+
+
 /*int tag_send(int tag, int level, char* buffer, size_t size), 
 this service delivers to the TAG service with tag as the descriptor the message 
 currently located in the buffer at address and made of size bytes.
@@ -118,40 +131,9 @@ int tag_receive(int tag, int level, char* buffer, size_t size){
     stati svegliati e che hanno ricevuto il messaggio
     */
 
-   tag_t* currTag; //get tag from ID
-   int preCheck;
-
-    currTag = getTagFromID(tag);
-    preCheck = checkCorrectCondition(currTag, uid);
-
-    if (preCheck == -1){
-        return -1;
-    }
-
-
-    printk("dentro tag_receive: recuperato tag con ID %d a indirizzo %d\n",tag,currTag);
-
-    level_t** tagLevels= currTag->levels;
-
-    //faccio la sleep ---> aspetto che arrivi msg
-    //uso wait event interruptible(wq, condition)
-    res = wait_event_interruptible(*tagLevels[level-1]->waitingThreads,tagLevels[level-1]->msg!=NULL);
+    waitForMessage(tag,level,buffer,size,uid);
     
-    if (res == -ERESTARTSYS){
-        printk("dentro tag_receive: receiver thread was interrupted by a signal");
-        return -1;
-    }
-    //recupero msg (cioè cosa faccio dopo che thread è stato svegliato) da field
-    //del livello
-
-    strcpy(tagLevels[level-1]->msg,buffer);
-    printk("dentro deliverMsg: messaggio ricevuto dal thread %d è: %s\n",uid.val, buffer);
-    //copy to user
-
-    //if thread si è svegliato per send o per segnale posix
-
     return 0;
-
 }
 
 

@@ -17,7 +17,6 @@ typedef struct{
     
     char *msg;
     int num;
-    int numThreads;
     wait_queue_head_t* waitingThreads;
 
 } level_t;
@@ -32,6 +31,9 @@ typedef struct {
 
     //pointer a array per livelli
     level_t **levels;
+    int numThreads;         //num of threads in every level's waitqueue
+    spinlock_t levelLocks[N_LEVELS];
+
 } tag_t;
 
 int addTag(int key, kuid_t userId, pid_t creatorProcessId, int perm);
@@ -42,5 +44,6 @@ void addElemToLevel(void);
 tag_t* getTagFromID(int id);
 int removeTag(int tag);
 void printArray(void);
+int waitForMessage(int tag,int myLevel, char* buffer, size_t size,kuid_t uid);
 
 
