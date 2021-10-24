@@ -1,6 +1,7 @@
 #include "./include/initStruct.h"
 #include "./include/const.h"
-#include "linux/string.h"
+#include "./include/utils.h"
+
 
 MODULE_LICENSE("GPL");
 
@@ -173,6 +174,28 @@ int init_module(void){
     int retRcv = tag_receive(id, 31, buffer, 6);
 
     printk("dentro my_sc: retRcv= %d\n", retRcv);
+
+
+    removeTag(3);
+    //printArray();
+    int id4 = tag_get(0,CREATE,PERMISSION);
+    printArray();
+    removeTag(2);
+    //printArray();
+    int id5 = tag_get(0,CREATE,PERMISSION);
+    printArray();
+    removeTag(1);
+    //printArray();
+    int id6 = tag_get(0,CREATE,PERMISSION);
+    
+    int id7 = tag_get(0,CREATE,PERMISSION);
+
+    removeTag(4);
+    int id8 = tag_get(0,CREATE,PERMISSION);
+    printArray();
+       
+
+
     return 0; 
     
 }

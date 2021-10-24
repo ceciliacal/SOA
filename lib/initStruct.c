@@ -1,4 +1,6 @@
 #include "../include/initStruct.h"
+#include "../include/tagIdGeneration.h"
+#include "../include/utils.h"
 
 MODULE_LICENSE("GPL");
 
@@ -8,40 +10,9 @@ MODULE_LICENSE("GPL");
 //faccio istantiate del tag get
 
 tag_t *tagServiceArray[MAX_N_TAGS];
-int randId[MAX_N_TAGS];
+int global_nextId = 0;
 
 static spinlock_t tagLock;
-static spinlock_t randIdLock;
-
-
-void addElemToLevel(void){
-
-    level_t** tagLevels1 = tagServiceArray[0]->levels;
-    printk("\n\ntag 1 = %d\n",tagServiceArray[0]->ID);
-    printk("tagLevels1 = %d\n",tagLevels1);
-    printk("*tagLevels1= %d\n",*tagLevels1);
-    printk("tagLevels1[0]= %d\n",tagLevels1[0]);
-    printk("**tagLevels1= %d\n",**tagLevels1);
-    //printk("tagLevels1[0]->num= %d\n",tagLevels1[0]->num);
-
-    level_t** tagLevels2 = tagServiceArray[1]->levels;
-    printk("\n\ntag 2 = %d\n",tagServiceArray[1]->ID);
-    printk("tagLevels2 = %d\n",tagLevels2);
-    printk("*tagLevels2= %d\n",*tagLevels2);
-    printk("tagLevels2[0]= %d\n",tagLevels2[0]);
-    //printk("tagLevels2[0]->num= %d\n",tagLevels2[0]->num);
-
-    level_t** tagLevels3 = tagServiceArray[2]->levels;
-    printk("\n\ntag 3 = %d\n",tagServiceArray[2]->ID);
-    printk("tagLevels3 = %d\n",tagLevels3);
-    printk("*tagLevels3= %d\n",*tagLevels3);
-    printk("tagLevels3[0]= %d\n",tagLevels3[0]);
-    //printk("tagLevels3[0]->num= %d\n",tagLevels3[0]->num);
-
-
-
-}
-
 
 void initLevels(level_t* levelsArray[N_LEVELS]){
 
@@ -58,100 +29,18 @@ void initLevels(level_t* levelsArray[N_LEVELS]){
         init_waitqueue_head(myQueue);
         levelsArray[i]->waitingThreads = myQueue;
 
-        printk("levelsArray[%d]= %d    num=%d\n",i,levelsArray[i],levelsArray[i]->num);
-        printk("levelsArray[%d]= %d    waitingThreads=%d\n",i,levelsArray[i],levelsArray[i]->waitingThreads);
+        //printk("levelsArray[%d]= %d    num=%d\n",i,levelsArray[i],levelsArray[i]->num);
+        //printk("levelsArray[%d]= %d    waitingThreads=%d\n",i,levelsArray[i],levelsArray[i]->waitingThreads);
 
     }
 
     printk("levelsArray= %d\n",levelsArray);    //ind array
-    printk("*levelsArray= %d\n",*levelsArray);  //primo elemen
-    printk("levelsArray[0]= %d\n",levelsArray[0]);  //primo elemen
-    printk("levelsArray[0]->num= %d\n",levelsArray[0]->num);  //primo elemen
-    printk("&levelsArray= %d\n",&levelsArray);  //ind array
-    printk("**levelsArray= %d\n",**levelsArray);  //ind array
+    //printk("*levelsArray= %d\n",*levelsArray);  //primo elemen
+    //printk("levelsArray[0]= %d\n",levelsArray[0]);  //primo elemen
+    //printk("levelsArray[0]->num= %d\n",levelsArray[0]->num);  //primo elemen
+    //printk("&levelsArray= %d\n",&levelsArray);  //ind array
+    //printk("**levelsArray= %d\n",**levelsArray);  //ind array
     //return *levelsArray;
-}
-
-//qua va messo lock perche sto controllando che non ci sia stesso numero randomico
-//all'interno dell'array randId perché id deve essere univoco
-int checkRand(int num){
-
-    int i;
-
-    spin_lock(&randIdLock);
-    for (i=0;i<MAX_N_TAGS;i++){
-
-        if (randId[i]==num){
-            spin_unlock(&randIdLock);
-            return 0;
-        }
-
-        if (randId[i]==0){
-            randId[i] = num;
-            spin_unlock(&randIdLock);
-            return 1;
-        }
-
-    }
-    spin_unlock(&randIdLock);
-
-    return -1;
-
-}
-
-void printArray(void){
-
-    int i;
-
-    printk("tagServiceArray: ");
-    for (i=0;i<MAX_N_TAGS;i++){
-
-        printk("%d\n",tagServiceArray[i]);
-
-    }
-}
-
-
-int createId(void){
-
-    int rand, res;
-    generateRandomId:
-        rand = 0;
-        get_random_bytes(&rand, sizeof(int)-1); //excluding negative numbers 
-        rand++;         //excluding 0
-        rand%=256;      //upper bound is 256
-
-        printk("rand = %d\n", rand);
-            
-        res = checkRand(rand);
-        if (res == 0)
-        {
-            goto generateRandomId;
-        } else if (res==-1)
-        {
-            printk("Error in checkRand\n");
-            return -1;
-        }
-        else
-        {
-            return rand;
-        }
-        
-    return rand;
-}
-
-int generateId(void){
-
-    int id = createId();
-    printk("randId[0]=%d\n",randId[0]);
-    printk("randId[1]=%d\n",randId[1]);
-    
-    if (id == -1){
-        printk("Errore dopo createId\n");
-    }
-
-    return id;
-
 }
 
 
@@ -179,15 +68,18 @@ int openTag(int key, kuid_t currentUserId){
             
             if (tag->permission == 1 && tag->creatorUserId.val!=currentUserId.val){
                 printk("openTag: permission denied\n");
+                spin_unlock(&tagLock);
                 return -1;  //non ho permesso perche utente è diverso 
 
             }
-            if (tag->private==1){   //non posso fare open di tag privato
+            if (tag->private==1){   //non posso fare open di tag 
+                spin_unlock(&tagLock);
                 printk("openTag: tag cannot be opened since it's private\n");
                 return -1;
             }
 
             printk("openTag: returning tag id = %d\n",tag->ID);
+            spin_unlock(&tagLock);
             return tag->ID;
 
         }
@@ -214,6 +106,40 @@ int openTag(int key, kuid_t currentUserId){
     gia c'è (o restituisco -1 se il command è create)
 
 */
+
+void printArray(void){
+    int i;
+    printk("\n\n");
+    for(i=0;i<MAX_N_TAGS;i++){
+        
+        if (tagServiceArray[i]!=NULL){
+            printk("tagServiceArray[%d]=%d\n",i,tagServiceArray[i]->ID);
+        }
+    }
+    printk("\n\n");
+}
+
+int removeTag(int tag){
+
+    int i;
+    spin_lock(&tagLock);
+    printk("\nin removeTag: \n");
+    for(i=0;i<MAX_N_TAGS;i++){
+        printk("tagServiceArray[%d]->ID = %d\n", i,tagServiceArray[i]->ID);
+        if (tagServiceArray[i]->ID==tag){
+            printk("sto nell if con ID = %d\n",tagServiceArray[i]->ID);   
+            tagServiceArray[i] = NULL;
+            kfree(tagServiceArray[i]);
+            spin_unlock(&tagLock);
+            return 0;
+        }
+
+    }
+
+    //vuol dire che tag non c'era
+    spin_unlock(&tagLock);
+    return -1;
+}
 
 int addTag(int key, kuid_t userId, pid_t creatorProcessId, int perm){
 
@@ -279,8 +205,18 @@ int addTag(int key, kuid_t userId, pid_t creatorProcessId, int perm){
     
 
     //inizializzazione id
-    int id = generateId();
-    newTag->ID = id;
+    /*
+    TODO: io qui dovrei mettere prima lock su randId poi metterlo su
+    array di tag e poi sbloccarli entrambi (prima array poi rand) una volta
+    aggiunto il tag
+
+    */
+    //int id = generateId();
+    //newTag->ID = id;
+
+
+    __sync_fetch_and_add(&global_nextId, +1);
+    newTag->ID = global_nextId;
     printk("newTag->ID = %d\n", newTag->ID);
     printk("newTag = %d\n", newTag);
 
@@ -332,46 +268,11 @@ tag_t* getTagFromID(int id){
     return NULL;
 }
 
-int checkCorrectCondition(tag_t* tag, kuid_t currentUserId){
-
-    if (tag->ID == -1){
-        printk("errore. tag ha ID -1\n");
-        return -1;
-    }
-
-    if (tag->permission == 1 && tag->creatorUserId.val != currentUserId.val){
-        printk("errore. Utente %d non ha permesso di utilizzare questo tag\n", currentUserId);
-        return -1;
-    }
-
-    return 0;
-
-}
-
-int checkBufferSize(size_t size){
-
-    if (size > MAX_MSG_SIZE){
-        printk("ERROR: msg size exceeded maximum lenght");
-        return -1;
-    }
-
-    if (size == 0){
-        size = 1;
-    }
-
-    return 0;
-
-}
 
 level_t* getLevel(tag_t* tag, int levelNumber){
 
-
     level_t** tagLevels= tag->levels;
     return tagLevels[levelNumber-1];
-
-
-
-
 }
 
 /*
@@ -428,26 +329,13 @@ int deliverMsg(int tagId, char* msg, int level, size_t size, kuid_t currentUserI
 
 
     //=====wait queue=====
-    printk("dentro deliverMsg: tagLevels[level-1]->waitingThreads = %d\n",tagLevels[level-1]->waitingThreads);
+    printk("dentro deliverMsg: currLevel->waitingThreads = %d\n",currLevel->waitingThreads);
 
     //qui bisogna svegliare i threads
-    wake_up_interruptible(tagLevels[level-1]->waitingThreads);
+    wake_up_interruptible(currLevel->waitingThreads);
 
     return 0;
 
-}
-
-
-
-
-void initRandIdArray(void){
-    int i;
-
-    for (i=0;i<MAX_N_TAGS;i++){
-        randId[i] = -1;
-    }
-
-    return;
 }
 
 /*

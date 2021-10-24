@@ -9,6 +9,7 @@
 #include <linux/uaccess.h>
 #include <linux/string.h>
 #include <linux/wait.h>
+#include "linux/string.h"
 #include "const.h"
 
 
@@ -38,8 +39,8 @@ int openTag(int key, kuid_t currentUserId);
 void serviceInitialization(void);
 int deliverMsg(int tagId, char* msg, int level, size_t size, kuid_t currentUserId);
 void addElemToLevel(void);
-int checkCorrectCondition(tag_t* tag, kuid_t currentUserId);
 tag_t* getTagFromID(int id);
-int checkBufferSize(size_t size);
+int removeTag(int tag);
+void printArray(void);
 
 
