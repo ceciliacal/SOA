@@ -9,9 +9,10 @@
 #include <linux/uaccess.h>
 #include <linux/string.h>
 #include <linux/wait.h>
+#include <linux/rwlock.h>
+#include <linux/rwlock_api_smp.h>
 #include "linux/string.h"
 #include "const.h"
-
 
 typedef struct{
     
@@ -45,5 +46,5 @@ tag_t* getTagFromID(int id);
 int removeTag(int tag);
 void printArray(void);
 int waitForMessage(int tag,int myLevel, char* buffer, size_t size,kuid_t uid);
-
+void initTagLocks(void);
 

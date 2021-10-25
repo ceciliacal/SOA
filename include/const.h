@@ -10,3 +10,8 @@
 #define MAX_N_TAGS 256
 #define N_LEVELS 32
 #define MAX_MSG_SIZE 4096
+
+#define get     134
+#define send    174
+#define receive 182
+#define ctl     183

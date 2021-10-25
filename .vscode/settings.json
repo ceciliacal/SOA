@@ -3,6 +3,8 @@
         "pthread.h": "c",
         "unistd.h": "c",
         "types.h": "c",
-        "initstruct.h": "c"
+        "initstruct.h": "c",
+        "utils.h": "c",
+        "user.h": "c"
     }
 }

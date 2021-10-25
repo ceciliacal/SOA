@@ -42,19 +42,6 @@ int tag_get(int key, int command, int permission){
     
 }
 
-/*
-int tag_ctl(int tag, int command),
-this system call allows the caller to control the TAG service with tag
-as descriptor according to command that can be either AWAKE_ALL 
-(for awaking all the threads waiting for messages, independently of the level),
-or REMOVE(for removing the TAG service from the system). 
-A TAG service cannot be removed if there are threads waiting for messages on it.
-By default, at least 256 TAG services should be allowed to be handled by software. 
-Also, the maximum size of the handled message should be of at least 4 KB.
-*/
-
-
-
 /*int tag_send(int tag, int level, char* buffer, size_t size), 
 this service delivers to the TAG service with tag as the descriptor the message 
 currently located in the buffer at address and made of size bytes.
@@ -136,12 +123,49 @@ int tag_receive(int tag, int level, char* buffer, size_t size){
     return 0;
 }
 
+/*
+int tag_ctl(int tag, int command),
+this system call allows the caller to control the TAG service with tag
+as descriptor according to command that can be either AWAKE_ALL 
+(for awaking all the threads waiting for messages, independently of the level),
+or REMOVE(for removing the TAG service from the system). 
+A TAG service cannot be removed if there are threads waiting for messages on it.
+By default, at least 256 TAG services should be allowed to be handled by software. 
+Also, the maximum size of the handled message should be of at least 4 KB.
+*/
+
+int tag_ctl(int tag, int command){
+
+    int res;
+    printk("sto in tag_ctl: hello\n");
+    if (command==REMOVE){
+
+        res = removeTag(tag);
+    }
+
+    if (res==-1){
+        printk("ERROR in tag_ctl: remove è andata MALE!\n");
+        return -1;
+    }
+
+    printk("FINE in tag_ctl: rimosso tag con ID %d\n",tag);
+
+    printArray();
+
+    return 0;
+}
 
 
 
+
+/*
 int init_module(void){
     
     printk("dentro my_sc: in init_module\n");
+
+    //inizializzazione tagLocks
+    initTagLocks();
+
     int id = tag_get(1,CREATE,NO_PERMISSION);
     int id1 = tag_get(1,CREATE,PERMISSION);
     int id2 = tag_get(0,CREATE,PERMISSION);
@@ -188,3 +212,4 @@ void cleanup_module(void){
     printk("CLEANUP!\n");
     
 }
+*/

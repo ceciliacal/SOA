@@ -1,5 +1,4 @@
 #include "../include/initStruct.h"
-#include "../include/tagIdGeneration.h"
 #include "../include/utils.h"
 
 MODULE_LICENSE("GPL");
@@ -14,6 +13,14 @@ int global_nextId = 0;
 int global_numTag = 0;
 
 static spinlock_t tagLock;
+rwlock_t tagLocks[MAX_N_TAGS];
+
+void initTagLocks(void){
+    int i;
+    for (i=0;i<MAX_N_TAGS;i++){
+        rwlock_init(&tagLocks[i]);
+    }
+}
 
 void initLevels(level_t* levelsArray[N_LEVELS],spinlock_t levelLocks[N_LEVELS]){
 
@@ -61,34 +68,39 @@ int openTag(int key, kuid_t currentUserId){
     //todo: check permessi 
 
     //va messo LOCK prima del for perché faccio subito check della chiave
-    spin_lock(&tagLock);
+    //spin_lock(&tagLock);
+
     for(i=0;i<MAX_N_TAGS;i++){
 
-        
+        read_lock(&tagLocks[i]);
         if (tagServiceArray[i]->key == key){
 
             tag = tagServiceArray[i];
             
             if (tag->permission == 1 && tag->creatorUserId.val!=currentUserId.val){
                 printk("openTag: permission denied\n");
-                spin_unlock(&tagLock);
+                //spin_unlock(&tagLock);
+                read_unlock(&tagLocks[i]);
                 return -1;  //non ho permesso perche utente è diverso 
 
             }
             if (tag->private==1){   //non posso fare open di tag 
-                spin_unlock(&tagLock);
+                //spin_unlock(&tagLock);
+                read_unlock(&tagLocks[i]);
                 printk("openTag: tag cannot be opened since it's private\n");
                 return -1;
             }
 
             printk("openTag: returning tag id = %d\n",tag->ID);
-            spin_unlock(&tagLock);
+            //spin_unlock(&tagLock);
+            read_unlock(&tagLocks[i]);
             return tag->ID;
 
         }
+        read_unlock(&tagLocks[i]);
 
     }
-    spin_unlock(&tagLock);
+    //spin_unlock(&tagLock);
 
 
     return 0;   //not found
@@ -188,8 +200,8 @@ int removeTag(int tag){
     //todo: mettere permessi per check utente
 
     int i;
-    spin_lock(&tagLock);
-    printk("\nin removeTag: \n");
+    //spin_lock(&tagLock);
+    printk("\n------------in removeTag: \n\n");
 
     if (global_numTag<1){
         printk("Errore in removeTag: non ci sono tag da rimuovere, inserirne almeno uno prima.\n");
@@ -198,35 +210,46 @@ int removeTag(int tag){
 
     for(i=0;i<MAX_N_TAGS;i++){
 
-        printk("tagServiceArray[%d]->ID = %d\n", i,tagServiceArray[i]->ID);
-        
-        if (tagServiceArray[i]->ID==tag){
+        if (tagServiceArray[i]!=NULL){
+            printk("tagServiceArray[%d]->ID = %d\n", i,tagServiceArray[i]->ID);
+
+        }
+
+        read_lock(&tagLocks[i]);
+        if (tagServiceArray[i]!=NULL && tagServiceArray[i]->ID==tag){
 
             printk("sto nell if con ID = %d\n",tagServiceArray[i]->ID);
             
             //check se ci sono thread nella wq
             if (tagServiceArray[i]->numThreads==0){
 
-                //todo: fare free dei livelli
+                //TODO: fare free dei livelli
+                read_unlock(&tagLocks[i]);
 
+                write_lock(&tagLocks[i]);
                 tagServiceArray[i] = NULL;
                 kfree(tagServiceArray[i]);
+                write_unlock(&tagLocks[i]);
                 __sync_fetch_and_add(&global_numTag, -1);
-                spin_unlock(&tagLock);
+                
+                //spin_unlock(&tagLock);
+                
                 return 0;
 
             }
+            
             else{
                 printk("RemoveTag: ERRORE ci sono %d thread nella wait queue\n",tagServiceArray[i]->numThreads);
             }
             
         
         }
+        read_unlock(&tagLocks[i]);
 
     }
 
     //vuol dire che tag non c'era
-    spin_unlock(&tagLock);
+    //spin_unlock(&tagLock);
     return -1;
 }
 
@@ -248,26 +271,26 @@ int addTag(int key, kuid_t userId, pid_t creatorProcessId, int perm){
 
     if (key!=0){
 
-        //va messo LOCK -> uso spinlock a diff di rw perche quest ultimi 
-        //vengono usati per strutture dati che hanno molte piu read che write
-        //(e non è questo il caso)
-        spin_lock(&tagLock);
+        //spin_lock(&tagLock);
         for(i=0;i<MAX_N_TAGS;i++){
+
+            read_lock(&tagLocks[i]);
         
             if (tagServiceArray[i]!=NULL&&tagServiceArray[i]->key==key){
-                spin_unlock(&tagLock);
+                //spin_unlock(&tagLock);
                 printk("addTag: there is already a tag with key %d\n. Try again with OPEN command.\n",tagServiceArray[i]->key); 
                 
+                read_unlock(&tagLocks[i]);
                 return -1;
             }
+            read_unlock(&tagLocks[i]);
         }
-        spin_unlock(&tagLock);
+        //spin_unlock(&tagLock);
     }
 
     
     tag_t* newTag;
     level_t** levelsArray = (level_t**) kzalloc(sizeof(level_t*)*N_LEVELS,GFP_KERNEL);
-    //spinlock_t** levelLocksArray = (spinlock_t**) kzalloc(sizeof(spinlock_t)*N_LEVELS,GFP_KERNEL);
 
     newTag = (tag_t*) kzalloc(sizeof(tag_t), GFP_KERNEL);
     if (perm==1){
@@ -305,27 +328,36 @@ int addTag(int key, kuid_t userId, pid_t creatorProcessId, int perm){
 
     //aggiunto di newTag all'array
     //ANCHE qui va usato lock
+    
+    //spin_lock(&tagLock);
+
     printk("newTag:\n");
-    spin_lock(&tagLock);
     for(i=0;i<MAX_N_TAGS;i++){
-        //printk("prima if: i=%d\n",i);
+
+        read_lock(&tagLocks[i]);
         if (tagServiceArray[i]!=NULL){
             printk("tagServiceArray[%d]=%d\n",i,tagServiceArray[i]->ID);
         }
         
         if (tagServiceArray[i]==NULL){
+            read_unlock(&tagLocks[i]);
+            write_lock(&tagLocks[i]);
             tagServiceArray[i] = newTag;
+            write_unlock(&tagLocks[i]);
             __sync_fetch_and_add(&global_numTag, +1);
             printk("tagServiceArray[%d]=%d\n",i,tagServiceArray[i]->ID);
             break;
         }
+        read_unlock(&tagLocks[i]);
 
     }
-    spin_unlock(&tagLock);
+    //spin_unlock(&tagLock);
     
     return newTag->ID;
     
 }
+
+//todo: mettere msg a null dopo lettura in rcv
 
 
 tag_t* getTagFromID(int id){

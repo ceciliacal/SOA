@@ -178,17 +178,44 @@ __SYSCALL_DEFINEx(3, _tag_get, int, key, int, command, int, permission) {
     
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)
+__SYSCALL_DEFINEx(4, _tag_send, int, tag, int, level, char*, buffer, size_t ,size) {
+#else
+    asmlinkage int sys_tag_send(int tag, int level, char* buffer, size_t size) {
+#endif
+    return tag_send(tag, level, buffer, size);
+}
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)
+__SYSCALL_DEFINEx(4, _tag_receive, int, tag, int, level, char*, buffer, size_t, size) {
+#else
+    asmlinkage int sys_tag_receive(int tag, int level, char* buffer, size_t size) {
+#endif
+    return tag_receive(tag, level, buffer, size);
+}
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)
+__SYSCALL_DEFINEx(2, _tag_ctl, int, tag, int, command) {
+#else
+    asmlinkage int sys_tag_ctl(int tag, int command) {
+#endif
+    return tag_ctl(tag, command);
+}
+
 
 
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)
 static unsigned long sys_tag_get = (unsigned long) __x64_sys_tag_get;
+static unsigned long sys_tag_send = (unsigned long) __x64_sys_tag_send;
+static unsigned long sys_tag_receive = (unsigned long) __x64_sys_tag_receive;
+static unsigned long sys_tag_ctl = (unsigned long) __x64_sys_tag_ctl;
 #else
 #endif
 
 // ---------------------------------------------------------------------------------------------------------------------
 
-/*
+
 int init_module(void) {
 
     int i,j;
@@ -213,18 +240,22 @@ int init_module(void) {
 #ifdef SYS_CALL_INSTALL
     cr0 = read_cr0();
     unprotect_memory();
-    hacked_syscall_tbl[FIRST_NI_SYSCALL] = (unsigned long*)sys_tag_get;
+    hacked_syscall_tbl[free_entries[0]] = (unsigned long*)sys_tag_get;
+    hacked_syscall_tbl[free_entries[1]] = (unsigned long*)sys_tag_send;
+    hacked_syscall_tbl[free_entries[2]] = (unsigned long*)sys_tag_receive;
+    hacked_syscall_tbl[free_entries[3]] = (unsigned long*)sys_tag_ctl;
     
     protect_memory();
     printk("%s: sys_tag_get installed on the sys_call_table at displacement %d\n",MODNAME,FIRST_NI_SYSCALL);
-    //printk("%s: sys_tag_send installed on the sys_call_table at displacement %d\n",MODNAME,SECOND_NI_SYSCALL);
-    //printk("%s: sys_tag_receive installed on the sys_call_table at displacement %d\n",MODNAME,THIRD_NI_SYSCALL);
-    //printk("%s: sys_tag_ctl installed on the sys_call_table at displacement %d\n",MODNAME,FOURTH_NI_SYSCALL);
+    printk("%s: sys_tag_send installed on the sys_call_table at displacement %d\n",MODNAME,SECOND_NI_SYSCALL);
+    printk("%s: sys_tag_receive installed on the sys_call_table at displacement %d\n",MODNAME,THIRD_NI_SYSCALL);
+    printk("%s: sys_tag_ctl installed on the sys_call_table at displacement %d\n",MODNAME,FOURTH_NI_SYSCALL);
 #else
 #endif
 
 
-    printk("%s: Module correctly mounted TAG_GET\n",MODNAME);
+    printk("%s: FATTO!!!!!!!!\n",MODNAME);
+
     return 0;
 }
 
@@ -234,14 +265,14 @@ void cleanup_module(void) {
     cr0 = read_cr0();
     unprotect_memory();
     hacked_syscall_tbl[FIRST_NI_SYSCALL] = (unsigned long*)hacked_ni_syscall;
-    //hacked_syscall_tbl[SECOND_NI_SYSCALL] = (unsigned long*)hacked_ni_syscall;
-    //hacked_syscall_tbl[THIRD_NI_SYSCALL] = (unsigned long*)hacked_ni_syscall;
-    //hacked_syscall_tbl[FOURTH_NI_SYSCALL] = (unsigned long*)hacked_ni_syscall;
+    hacked_syscall_tbl[SECOND_NI_SYSCALL] = (unsigned long*)hacked_ni_syscall;
+    hacked_syscall_tbl[THIRD_NI_SYSCALL] = (unsigned long*)hacked_ni_syscall;
+    hacked_syscall_tbl[FOURTH_NI_SYSCALL] = (unsigned long*)hacked_ni_syscall;
     protect_memory();
 #else
 #endif
     printk("%s: Shutting down\n",MODNAME);
 
 }
-*/
+
 
