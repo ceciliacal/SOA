@@ -3,7 +3,6 @@
 #include <string.h>
 
 int numReceivers = 5;
-size_t size;
 
 
 // The function to be executed by all threads
@@ -22,13 +21,14 @@ void *createTag(void *vargp)
 void *receiveMsg(void *vargp)
 {
     int *myid = (int *)vargp;
-    printf("receiveMsg: thread %d\n", *myid);
-    //size_t size = 10;
+    //printf("receiveMsg: thread %d\n", *myid);
+    size_t size = 10;
     char* buffer = malloc(sizeof(char)*size);
 
+    printf("PRIMA tag_receive: thread %d , buffer= %s\n",*myid, buffer);
     syscall(receive,1,1,buffer,size);
   
-    printf("FINE receiveMsg: thread %d , buffer= %s\n",*myid, buffer);
+    printf("DOPO tag_receive: thread %d , buffer= %s\n",*myid, buffer);
     pthread_exit(NULL);
 }
 
@@ -39,7 +39,7 @@ void *sendMsg(void *vargp)
     int *myid = (int *)vargp;
     printf("sendMsg: thread %d\n", *myid);
     size_t size = 10;
-    char* buffer = malloc(sizeof(char)*20);
+    char* buffer = malloc(sizeof(char)*10);
     printf("sendMsg: buffer= %s\n", buffer);
 
     char* res;
@@ -105,7 +105,7 @@ int main(int argc, char** argv){
 
     char* res;
     char* msgToSent = "cacca";
-    size = sizeof(msgToSent);
+    ssize_t size = 10;
     printf("size=%d\n", size);
 
     char* buffer = malloc(sizeof(char)*size);

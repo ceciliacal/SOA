@@ -17,8 +17,8 @@
 typedef struct{
     
     char *msg;
-    int num;
-    wait_queue_head_t* waitingThreads;
+    int numThreadsWq;
+    wait_queue_head_t* waitingThreads; 
 
 } level_t;
 

@@ -25,7 +25,7 @@ void initLevels(level_t* levelsArray[N_LEVELS],spinlock_t levelLocks[N_LEVELS]){
     for (i=0;i<N_LEVELS;i++){
 
         levelsArray[i]= (level_t*) kzalloc(sizeof(level_t),GFP_KERNEL);
-        levelsArray[i]->num=i+1;
+        levelsArray[i]->numThreadsWq=0;
         spin_lock_init(&levelLocks[i]);
         
         
@@ -63,27 +63,24 @@ int openTag(int key, kuid_t currentUserId){
     //TODO: check permessi 
     for(i=0;i<MAX_N_TAGS;i++){
 
-        if (tagServiceArray[i]->key == key){
-
-            read_lock(&tagLocks[i]);
+        read_lock(&tagLocks[i]);
+        if (tagServiceArray[i]!=NULL && tagServiceArray[i]->key == key){
+            
             tag = tagServiceArray[i];
             
             if (tag->permission == 1 && tag->creatorUserId.val!=currentUserId.val){
                 printk("openTag: permission denied\n");
-                //spin_unlock(&tagLock);
                 read_unlock(&tagLocks[i]);
                 return -1;  //non ho permesso perche utente è diverso 
 
             }
             if (tag->private==1){   //non posso fare open di tag 
-                //spin_unlock(&tagLock);
                 read_unlock(&tagLocks[i]);
                 printk("openTag: tag cannot be opened since it's private\n");
                 return -1;
             }
 
             printk("openTag: returning tag id = %d\n",tag->ID);
-            //spin_unlock(&tagLock);
             read_unlock(&tagLocks[i]);
             return tag->ID;
 
@@ -91,8 +88,6 @@ int openTag(int key, kuid_t currentUserId){
         read_unlock(&tagLocks[i]);
 
     }
-    //spin_unlock(&tagLock);
-
 
     return -1;   //not found
 
@@ -119,6 +114,7 @@ int checkAwakeAll(int tag, kuid_t currentUserId){
     tag_t* currTag = NULL; //get tag from ID
     level_t* currLevel;
 
+    printk("in AWAKE_ALL\n");
     for(i=0;i<MAX_N_TAGS;i++){
         
         read_lock(&tagLocks[i]);
@@ -180,7 +176,7 @@ void printArray(void){
 
 int waitForMessage(int tag,int level, char* buffer, size_t size, kuid_t uid){
     
-    int res;
+    int resWaitEvent;
     int i;
     tag_t* currTag = NULL; //get tag from ID
 
@@ -192,13 +188,13 @@ int waitForMessage(int tag,int level, char* buffer, size_t size, kuid_t uid){
 
     int myLevel = level-1;
 
-    //currTag = getTagFromID(tag);
-
     for(i=0;i<MAX_N_TAGS;i++){
 
+        read_lock(&tagLocks[i]);
         if (tagServiceArray[i]!=NULL && tagServiceArray[i]->ID == tag){
-            read_lock(&tagLocks[i]);
+            
             currTag = tagServiceArray[i];
+            read_unlock(&tagLocks[i]);
             break;
         }
 
@@ -222,16 +218,19 @@ int waitForMessage(int tag,int level, char* buffer, size_t size, kuid_t uid){
 
     //+1 thread in sleep
     __sync_fetch_and_add(&currTag->numThreads, +1);
+    __sync_fetch_and_add(&(tagLevels[myLevel]->numThreadsWq), +1);
 
-    res = wait_event_interruptible(*tagLevels[myLevel]->waitingThreads,tagLevels[myLevel]->msg!=NULL);
-    printk("dentro waitForMessage: risvegliati %d thread dalla wait queue!!!!!!!!!\n",currTag->numThreads);
-
+    resWaitEvent = wait_event_interruptible(*tagLevels[myLevel]->waitingThreads,tagLevels[myLevel]->msg!=NULL);
+    
     //-1 thread in sleep
     __sync_fetch_and_add(&currTag->numThreads, -1);
+    __sync_fetch_and_add(&(tagLevels[myLevel]->numThreadsWq), -1);
 
-    if (res==0){
+    printk("\n---dentro waitForMessage: DOPO WAIT_EVENT  -  %d thread in tag  -  %d thread in wq\n",currTag->numThreads, tagLevels[myLevel]->numThreadsWq);
+
+    if (resWaitEvent==0){
         
-        //TODO: if BUFFER==NULL
+        //TODO: if BUFFER==NULL -> doppia condizione con awake all anche
         printk("dentro waitForMessage: receiver thread woke up because condition was TRUE");
         
     }
@@ -244,18 +243,40 @@ int waitForMessage(int tag,int level, char* buffer, size_t size, kuid_t uid){
 
     //recupero msg (cioè cosa faccio dopo che thread è stato svegliato)
     // da field del livello
-    printk("dentro waitForMessage: tagLevels[myLevel]->msg: %s\n",tagLevels[myLevel]->msg);
-    printk("dentro waitForMessage: thr %d - prima copy_to_user MESSAGGIO LETTO (rcv) da thread è: %s\n",uid.val, buffer);
-
     int resultCopy = __copy_to_user(buffer,tagLevels[myLevel]->msg,size);
     printk("\ndentro waitForMessage: resultCopy = %d \n",resultCopy);
 
+    printk("dentro waitForMessage: tagLevels[myLevel]->msg: %s\n",tagLevels[myLevel]->msg);
+    printk("dentro waitForMessage: thr %d - prima copy_to_user MESSAGGIO LETTO (rcv) da thread è: %s\n",uid.val, buffer);
+
     //strcpy(tagLevels[myLevel]->msg,buffer);
 
-    read_unlock(&tagLocks[i]);
+    printk("\ndentro waitForMessage: PRIMA IF livello%d->numThreadsWq=%d\n",myLevel,tagLevels[myLevel]->numThreadsWq);
+
+    write_lock(&tagLocks[i]);
+    if(tagLevels[myLevel]->numThreadsWq==0){
+
+        printk("\ndentro waitForMessage: NELL'IF livello%d->numThreadsWq=%d\n",myLevel,tagLevels[myLevel]->numThreadsWq);
+
+        spin_lock(&(currTag->levelLocks[myLevel]));
+        
+        printk("\ndentro waitForMessage: NELL'IF - PRIMA NULL - msg=%s\n",tagLevels[myLevel]->msg);
+        tagLevels[myLevel]->msg=NULL;
+        printk("\ndentro waitForMessage: NELL'IF - DOPO NULL - msg=%s\n",tagLevels[myLevel]->msg);
+
+        spin_unlock(&(currTag->levelLocks[myLevel]));
+
+    }
+
+    if(tagLevels[myLevel]->numThreadsWq<0){
+
+        printk("\n\n ==== dentro waitForMessage: numThreadsWq = %d    -    MINORE DI 0!!! ==== \n\n",tagLevels[myLevel]->numThreadsWq);
+
+    }
+
+    write_unlock(&tagLocks[i]);
     printk("dentro waitForMessage: messaggio ricevuto dal thread %d è: %s\n",uid.val, buffer);
     
-    //return sizeof(buffer);
     return 0;
     
 
@@ -307,6 +328,14 @@ int removeTag(int tag, kuid_t currentUserId ){
                 write_lock(&tagLocks[i]);
                 tagServiceArray[i] = NULL;
                 kfree(tagServiceArray[i]);
+
+                //free dei livelli
+                //TODO: ma è giusto prima null e poi kree?
+                tagServiceArray[i]->levels=NULL;
+                kfree(tagServiceArray[i]->levels);
+                tagServiceArray[i]->levelLocks=NULL;
+                kfree(tagServiceArray[i]->levelLocks=NULL);
+
                 write_unlock(&tagLocks[i]);
                 __sync_fetch_and_add(&global_numTag, -1);
                                 

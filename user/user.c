@@ -66,7 +66,7 @@ int main(int argc, char** argv){
     //sleep(5);
     
     printf("\n\n fine sleep...\n generazione dei thread per creazione di altri tag nei posti liberi!\n");
-
+    
 
     
     pthread_t tid3[4];
