@@ -97,19 +97,16 @@ int main(int argc, char** argv){
     size_t size = 10;
     rcv_args_t *info[numReceivers];
 
+    char* msgToSent = "cacca";
     
 
-    /*
-    qui bisognerebbe fare array di struct "info" 
-    e poi passarle come parametro (..,..,..,info) nel for
-    */
-
-    //printf("\n---creazione threads CREATE:\n");
+    
     int id = syscall(get,0,CREATE,NO_PERMISSION);
     
 
+    
     //printf("\n---creazione threads RCV:\n");
-    for (i=0; i<numReceivers; i++){
+    for (i=0; i<1; i++){
         //printf("---creazione threads -    tid[i]= %d\n",tid[i]);
 
         info[i] = malloc(sizeof(rcv_args_t));
@@ -125,19 +122,12 @@ int main(int argc, char** argv){
         
     }
 
-    //printf("\n---creazione threads SEND:\n");
-
     sleep(5);
-    //printf("\n---FAI INTERRUPT!!!!!!:\n");
 
-    char* msgToSent = "cacca";
 
-    //char* buffer = malloc(sizeof(char)*size);
-    //printf("sendMsg: msgToSent= %s\n", msgToSent);
+   
 
-    
 
-    //res=strncpy(buffer,"cacca",size);
     int r=syscall(send,id,1,msgToSent,size);
 
     if (r==0){
@@ -146,44 +136,24 @@ int main(int argc, char** argv){
     else{
         printf("tag_send result: %d. NON è andata bene!\n",r);
     }
-
-    /*
-    pthread_t tid1[2];
-    for (i=0; i<2; i++){
-
-        pthread_create(&tid1[i], NULL, sendMsg, (void *)&tid1[i]);
-        
-    }
-
-    printf("\n---creazione threads RCV 2 VOLTA!:\n");
-    pthread_t tid2[numReceivers];
-    for (i=0; i<numReceivers; i++){
-
-        pthread_create(&tid2[i], NULL, receiveMsg, (void *)&tid2[i]);
-        
-    }
-    */
+    
+    
 
 
 
+   
+    //syscall(send,id,1,msgToSent,size);
 
 
-    for (i = 0; i < numReceivers; i++){
+
+    for (i = 0; i < 1; i++){
         pthread_join(tid[i],0);
 
     }
 
-    /*
-    for (i = 0; i < 2; i++){
-        pthread_join(tid1[i],0);
 
-    }
-    for (i = 0; i < numReceivers; i++){
-        pthread_join(tid2[i],0);
 
-    }
-    */
-
+    
 
     return 0;
 

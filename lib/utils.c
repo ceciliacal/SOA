@@ -32,7 +32,7 @@ int checkBufferSize(size_t size){
 
     if (size == 0){
         printk("tag_receive, sto in checkBufferSize: size=0\n");
-        size = 1;
+        return 1;
     }
 
     return 0;

@@ -246,15 +246,16 @@ int waitForMessage(int tag,int level, char* buffer, size_t size, kuid_t uid){
     // da field del livello
     // TODO: size = tagLevels[myLevel]->lastSize     min(lastSize,size)
 
-    int resultCopy = copy_to_user(buffer,tagLevels[myLevel]->msg, min(tagLevels[myLevel]->lastSize,size));
+    int resultCopy = __copy_to_user(buffer,tagLevels[myLevel]->msg, min(tagLevels[myLevel]->lastSize,size));
 
+    printk("\ndentro waitForMessage: resultCopy = %d \n",resultCopy);
     //-1 thread in sleep
     __sync_fetch_and_add(&currTag->numThreads, -1);
     __sync_fetch_and_add(&(tagLevels[myLevel]->numThreadsWq), -1);
 
-    printk("\ndentro waitForMessage: resultCopy = %d \n",resultCopy);
+    //printk("\ndentro waitForMessage: resultCopy = %d \n",resultCopy);
 
-    printk("dentro waitForMessage: tagLevels[myLevel]->msg: %s\n",tagLevels[myLevel]->msg);
+    //printk("dentro waitForMessage: tagLevels[myLevel]->msg: %s\n",tagLevels[myLevel]->msg);
     printk("dentro waitForMessage: thr %d - prima copy_to_user MESSAGGIO LETTO (rcv) da thread è: %s\n",uid.val, buffer);
 
     //strcpy(tagLevels[myLevel]->msg,buffer);
@@ -264,7 +265,7 @@ int waitForMessage(int tag,int level, char* buffer, size_t size, kuid_t uid){
     write_lock(&tagLocks[i]);
     if(tagLevels[myLevel]->numThreadsWq==0){
 
-        printk("\ndentro waitForMessage: NELL'IF livello%d->numThreadsWq=%d\n",myLevel,tagLevels[myLevel]->numThreadsWq);
+        //printk("\ndentro waitForMessage: NELL'IF livello%d->numThreadsWq=%d\n",myLevel,tagLevels[myLevel]->numThreadsWq);
 
         spin_lock(&(currTag->levelLocks[myLevel]));
         
@@ -517,7 +518,7 @@ int deliverMsg(int tagId, char* msg, int level, size_t size, kuid_t currentUserI
     
 
     if (currTag==NULL){
-        printk("dentro waitForMessage: ERRORE, tag con ID %d not found\n",tagId);
+        printk("dentro deliverMessage: ERRORE, tag con ID %d not found\n",tagId);
         read_unlock(&tagLocks[i]);
         return -1;
     }
@@ -534,26 +535,34 @@ int deliverMsg(int tagId, char* msg, int level, size_t size, kuid_t currentUserI
     level_t** tagLevels= currTag->levels;
     level_t* currLevel = tagLevels[level-1];
 
-    currLevel->msg = (char*) kzalloc(sizeof(char)*size, GFP_KERNEL);
-
     spin_lock(&currTag->levelLocks[level-1]);
+
+    if(currLevel->msg != NULL){
+        spin_unlock(&currTag->levelLocks[level-1]);
+        read_unlock(&tagLocks[i]);
+        printk(KERN_ERR "dentro deliverMsg: è gia in uso il tag con ID %d al livello %d questa send viene scartata\n",tagId, level-1);
+        return -1;
+    }
+
+    currLevel->msg = (char*) kzalloc(sizeof(char)*size, GFP_KERNEL);
 
     currLevel->lastSize = size;
     
     //copy from user
-    int copiati = copy_from_user(currLevel->msg,msg,size);
-    printk("ERRORE dentro deliverMsg: copiati = %s\n", copiati);
-    if (copiati!=0){
+    int copiati = __copy_from_user(currLevel->msg,msg,size);
+    printk(KERN_INFO "Dentro deliverMsg: copiati = %d\n", copiati);
 
+    if (copiati!=0){
+        spin_unlock(&currTag->levelLocks[level-1]);
         read_unlock(&tagLocks[i]);
-        printk("ERRORE dentro deliverMsg: copy_from_user andata male\n");
+        printk(KERN_ERR "ERRORE dentro deliverMsg: copy_from_user andata male\n");
         return -1;
     }
 
     printk("dentro deliverMsg: ID = %d  currLevel->msg = %s\n",currTag->ID,currLevel->msg);
 
     //=====wait queue=====
-    printk("dentro deliverMsg: ID = %d  currLevel->waitingThreads = %d\n",currTag->ID,currLevel->waitingThreads);
+    //printk("dentro deliverMsg: ID = %d  currLevel->waitingThreads = %d\n",currTag->ID,currLevel->waitingThreads);
     //qui bisogna svegliare i threads
     wake_up_all(&(currLevel->waitingThreads));
     

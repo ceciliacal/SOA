@@ -80,16 +80,18 @@ int tag_send(int tag, int level, char* buffer, size_t size){
         return -1;
     }
 
+    /*
     //printk("buffer. buffer =%s\n",buffer);
     msg = (char*) kzalloc(sizeof(char)*size, GFP_KERNEL);
     //copy_from_user(msg, buffer, size);
     strcpy(msg, buffer);
     printk("msg allocato. msg =%s\n",msg);
+    */
 
     const struct cred *cred = current_cred();
     kuid_t uid = cred->uid;
 
-    res = deliverMsg(tag, msg, level, size, uid);
+    res = deliverMsg(tag, buffer, level, size, uid);
 
     if (res==-1){
         printk("ERROR: error during deliver msg");
@@ -122,9 +124,12 @@ int tag_receive(int tag, int level, char* buffer, size_t size){
     if (checkSize==-1){
         printk("errore. Dimensione messaggio è troppo grande\n");
         return -1;
+    }else if(checkSize==1){
+        size = 1;
+
     }
 
-    buffer = (char*) kzalloc(sizeof(char)*size, GFP_KERNEL);
+    //buffer = (char*) kzalloc(sizeof(char)*size, GFP_KERNEL);
 
     const struct cred *cred = current_cred();
     kuid_t uid = cred->uid;

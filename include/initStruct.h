@@ -1,7 +1,8 @@
+#define EXPORT_SYMTAB
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/cred.h>
-#include <linux/sched.h>
+//#include <linux/sched.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
 #include <linux/uaccess.h>
