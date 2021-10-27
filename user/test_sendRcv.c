@@ -4,6 +4,20 @@
 
 int numReceivers = 5;
 
+/*
+TODO: testare
+    -rcv su due livelli diversi di stesso tag
+    - permessi?!
+    -3 msg diversi di fila
+    - for con le send
+    -size?!
+    -testare awake all dopo sleep (1 rcv, sleep, awake all)
+    -casistiche tag get con permessi, open ecc
+    -rmv quando ci sono thread nella wq
+
+
+*/
+
 
 // The function to be executed by all threads
 void *createTag(void *vargp)
@@ -17,20 +31,7 @@ void *createTag(void *vargp)
     pthread_exit(NULL);
 }
 
-// The function to be executed by all threads
-void *receiveMsg(void *vargp)
-{
-    int *myid = (int *)vargp;
-    //printf("receiveMsg: thread %d\n", *myid);
-    size_t size = 10;
-    char* buffer = malloc(sizeof(char)*size);
 
-    printf("PRIMA tag_receive: thread %d , buffer= %s\n",*myid, buffer);
-    syscall(receive,1,1,buffer,size);
-  
-    printf("DOPO tag_receive: thread %d , buffer= %s\n",*myid, buffer);
-    pthread_exit(NULL);
-}
 
 
 // The function to be executed by all threads
@@ -57,66 +58,90 @@ void *sendMsg(void *vargp)
     pthread_exit(NULL);
 }
 
+// The function to be executed by all threads
+void *receiveMsg2(void *vargp)
+{
+    int *myid = (int *)vargp;
+    //printf("receiveMsg: thread %d\n", *myid);
+    size_t size = 10;
+    char* buffer = malloc(sizeof(char)*size);
 
+
+
+    printf("PRIMA tag_receive: thread %d , buffer= %s\n",*myid, buffer);
+    int res = syscall(receive,1,1,buffer,size);
+    printf("Syscall result: %d thread %d , buffer= %s\n",res, *myid, buffer);
+    printf("DOPO tag_receive: thread %d , buffer= %s\n",*myid, buffer[0]);
+    pthread_exit(NULL);
+}
+
+// The function to be executed by all threads
+void *receiveMsg(rcv_args_t *info)
+{
+    //int *myid = (int *)vargp;
+    //printf("receiveMsg: thread %d\n", *myid);
+    //size_t size = 10;
+    //char* buffer = malloc(sizeof(char)*size);
+
+    printf("PRIMA tag_receive: thread %d , buffer= %s\n",info->tid, info->buffer);
+    int res = syscall(receive,info->tag,info->level,info->buffer,info->size);
+    printf("Syscall result: %d thread %d , buffer= %s\n",res, info->tid, info->buffer);
+    //printf("DOPO tag_receive: thread %d , buffer= %s\n",*myid, buffer[0]);
+    pthread_exit(NULL);
+}
 
 int main(int argc, char** argv){
 
     int i;
     pthread_t tid[numReceivers];
+    size_t size = 10;
+    rcv_args_t *info[numReceivers];
+
     
 
-    struct tag_get_args_t *info  = malloc(sizeof(tag_get_args_t));
     /*
     qui bisognerebbe fare array di struct "info" 
     e poi passarle come parametro (..,..,..,info) nel for
     */
 
-    printf("\n---creazione threads CREATE:\n");
+    //printf("\n---creazione threads CREATE:\n");
     int id = syscall(get,0,CREATE,NO_PERMISSION);
-    /*
-    for (i=0; i<numReceivers; i++){
-
-        pthread_create(&tid[i], NULL, createTag, (void *)&tid[i]);
-        
-    }
-    */
-
-    //printf("FINE FOR!!!!!!!!\n");
-    printf("\n\n inizio sleep...\n");
-    sleep(3);
-    
-    printf("\n\n fine sleep...\n generazione dei thread per receive!\n");
-
-    printf("\n---creazione threads RCV:\n");
-    for (i=0; i<numReceivers; i++){
-
-        pthread_create(&tid[i], NULL, receiveMsg, (void *)&tid[i]);
-        
-    }
-
-    sleep(3);
-
-    printf("\n\n fine sleep...\n generazione dei thread per send!\n");
-
-    printf("\n---creazione threads SEND:\n");
-
-    //size_t size = 10;
     
 
-    char* res;
+    //printf("\n---creazione threads RCV:\n");
+    for (i=0; i<numReceivers; i++){
+        //printf("---creazione threads -    tid[i]= %d\n",tid[i]);
+
+        info[i] = malloc(sizeof(rcv_args_t));
+        char* buffer = malloc(sizeof(char)*10);
+        
+        info[i]->buffer=buffer;
+        info[i]->size=size;
+        info[i]->tag=id;
+        info[i]->level=1;
+        info[i]->tid=i;
+
+        pthread_create(&tid[i], NULL, receiveMsg, info[i]);
+        
+    }
+
+    //printf("\n---creazione threads SEND:\n");
+
+    sleep(5);
+    //printf("\n---FAI INTERRUPT!!!!!!:\n");
+
     char* msgToSent = "cacca";
-    ssize_t size = 10;
-    printf("size=%d\n", size);
 
-    char* buffer = malloc(sizeof(char)*size);
-    printf("sendMsg: buffer= %s\n", buffer);
+    //char* buffer = malloc(sizeof(char)*size);
+    //printf("sendMsg: msgToSent= %s\n", msgToSent);
 
+    
 
-    res=strncpy(buffer,"cacca",size);
-    int r=syscall(send,1,1,buffer,size);
+    //res=strncpy(buffer,"cacca",size);
+    int r=syscall(send,id,1,msgToSent,size);
 
     if (r==0){
-        printf("sendMsg: tag_send andata BENE!  buffer= %s\n", buffer);
+        printf("sendMsg: tag_send andata BENE!  buffer= %s\n", msgToSent);
     }
     else{
         printf("tag_send result: %d. NON è andata bene!\n",r);

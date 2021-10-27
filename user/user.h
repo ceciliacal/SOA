@@ -7,12 +7,13 @@ typedef struct{
     
     pthread_t tid;
 
-    int syscall;
-    int tagId;
-    int command;
-    int permission;
+    int tag;
+    int level;
+    char* buffer;
+    size_t size;
+    
 
-} tag_get_args_t;
+} rcv_args_t;
 
 
 

@@ -162,7 +162,7 @@ Also, the maximum size of the handled message should be of at least 4 KB.
 int tag_ctl(int tag, int command){
 
     int res;
-    printk("sto in tag_ctl: hello\n");
+    printk("----------sto in tag_ctl: hello\n");
 
     const struct cred *cred = current_cred();
     kuid_t uid = cred->uid;

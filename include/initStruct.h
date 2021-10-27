@@ -1,24 +1,21 @@
-#include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
-#include <linux/random.h>
 #include <linux/cred.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
 #include <linux/uaccess.h>
-#include <linux/string.h>
 #include <linux/wait.h>
 #include <linux/rwlock.h>
 #include <linux/rwlock_api_smp.h>
-#include "linux/string.h"
 #include "const.h"
 
 typedef struct{
     
     char *msg;
     int numThreadsWq;
-    wait_queue_head_t* waitingThreads; 
+    wait_queue_head_t waitingThreads; 
+    ssize_t lastSize;  //size of last sent message to this level
 
 } level_t;
 
