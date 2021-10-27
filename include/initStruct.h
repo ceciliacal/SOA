@@ -39,12 +39,10 @@ typedef struct {
 
 int addTag(int key, kuid_t userId, pid_t creatorProcessId, int perm);
 int openTag(int key, kuid_t currentUserId);
-void serviceInitialization(void);
 int deliverMsg(int tagId, char* msg, int level, size_t size, kuid_t currentUserId);
-void addElemToLevel(void);
-tag_t* getTagFromID(int id);
-int removeTag(int tag);
+int removeTag(int tag, kuid_t currentUserId);
 void printArray(void);
 int waitForMessage(int tag,int myLevel, char* buffer, size_t size,kuid_t uid);
 void initTagLocks(void);
+int checkAwakeAll(int tag, kuid_t currentUserId);
 

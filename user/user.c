@@ -1,11 +1,13 @@
 #include "../include/const.h"
 #include "user.h"
 
-
+int remId = 2;
+int loopCreate = 100;
+int loopRmv = 20;
 
 
 // The function to be executed by all threads
-void *myThreadFun(void *vargp)
+void *createTag(void *vargp)
 {
     int *myid = (int *)vargp;
     printf("sono thread %d e sto dentro a myThreadFun\n", *myid);
@@ -17,35 +19,23 @@ void *myThreadFun(void *vargp)
 }
 
 // The function to remove tag2
-void *myThread_remove2(void *vargp)
+void *removeTags(void *vargp)
 {
     int *myid = (int *)vargp;
     printf("sono thread %d e sto dentro a remove2\n", *myid);
     
-    int res = syscall(ctl,2,REMOVE);
-  
-    printf("Thread ID: %d, rimosso TAG con ID 2, res = %d\n", *myid, res);
-    pthread_exit(NULL);
-}
+    remId = remId+2;
 
-// The function to remove tag4
-void *myThread_remove4(void *vargp)
-{
-    int *myid = (int *)vargp;
-    printf("sono thread %d e sto dentro a remove4\n", *myid);
-    
-    int res = syscall(ctl,4,REMOVE);
+    int res = syscall(ctl,remId,REMOVE);
   
-    printf("Thread ID: %d, rimosso TAG con ID 4, res = %d\n", *myid, res);
+    printf("Thread ID: %d, rimosso TAG con ID %d, res = %d\n", *myid, remId, res);
     pthread_exit(NULL);
 }
 
 
 int main(int argc, char** argv){
-	//syscall(134,1,2);
 
     int i;
-    pthread_t tid;
 
     struct tag_get_args_t *info  = malloc(sizeof(tag_get_args_t));
     /*
@@ -53,10 +43,12 @@ int main(int argc, char** argv){
     e poi passarle come parametro (..,..,..,info) nel for
     */
 
-  
-    for (i = 0; i < 5; i++){
-        pthread_create(&tid, NULL, myThreadFun, (void *)&tid);
-        printf("dopo for i=%d\n", i);
+    printf("creazione thread CREATE:\n");
+    pthread_t tid1[loopCreate];
+    for (i = 0; i < loopCreate; i++){
+
+        pthread_create(&tid1[i], NULL, createTag, (void *)&tid1[i]);
+        
     }
 
     printf("FINE FOR!!!!!!!!\n");
@@ -64,15 +56,42 @@ int main(int argc, char** argv){
     sleep(5);
     
     printf("\n\n fine sleep...\n generazione dei thread per rimozione!\n");
-    if (pthread_create(&tid, NULL, myThread_remove2, (void *)&tid)!=0){
-        printf("ERRORE: fallito thread per remove2\n");   
-    };
-    if (pthread_create(&tid, NULL, myThread_remove4, (void *)&tid)!=0){
-        printf("ERRORE: fallito thread per remove4\n");   
-    };
+    pthread_t tid2[loopRmv];
+    for (i = 0; i < loopRmv; i++){
+        pthread_create(&tid2[i], NULL, removeTags, (void *)&tid2[i]);
+        //printf("dopo for i=%d\n", i);
+    }
+
+    printf("\n\n inizio sleep per RICREARE...\n");
+    //sleep(5);
+    
+    printf("\n\n fine sleep...\n generazione dei thread per creazione di altri tag nei posti liberi!\n");
+
+
+    
+    pthread_t tid3[4];
+    for (i = 0; i < 4; i++){
+        pthread_create(&tid3[i], NULL, createTag, (void *)&tid3[i]);
+        //printf("dopo for i=%d\n", i);
+    }
+
     
     printf("\n\n thread per rimozione creati\n"); 
-    pthread_join(tid,0);
+    
+    for (i = 0; i < loopCreate; i++){
+        pthread_join(tid1[i],0);
+        //printf("dopo for i=%d\n", i);
+    }
+    for (i = 0; i < loopRmv; i++){
+        pthread_join(tid2[i],0);
+        //printf("dopo for i=%d\n", i);
+    }
+    for (i = 0; i < 4; i++){
+        pthread_join(tid3[i],0);
+        //printf("dopo for i=%d\n", i);
+    }
+
+    
 
     /*
     int id = syscall(134,1,CREATE,NO_PERMISSION);

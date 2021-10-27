@@ -4,8 +4,8 @@
 #define PERMISSION 1
 #define NO_PERMISSION 0
 
-#define AWAKE_ALL 2
-#define REMOVE 3
+#define AWAKE_ALL 0
+#define REMOVE 1
 
 #define MAX_N_TAGS 256
 #define N_LEVELS 32

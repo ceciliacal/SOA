@@ -14,7 +14,12 @@ int tag_get(int key, int command, int permission){
     */
 
     if (command!=CREATE && command!=OPEN||permission!=PERMISSION && permission!=NO_PERMISSION){
-        printk("in tag_get: il valore di COMMAND e PERMISSION deve essere 0 o 1.\n");
+        printk("in tag_get: both COMMAND and PERMISSION value must be either 0 or 1.\n");
+        return -1;
+    }
+
+    if (key==0 && command==OPEN){
+        printk("in tag_get: cannot open a tag with IPC_PRIVATE key.\n");
         return -1;
     }
 
@@ -38,6 +43,9 @@ int tag_get(int key, int command, int permission){
     }
     printk("====== end tag_get with %d ======\n",tagId);
 
+    if (tagId==104){
+        printArray();
+    }
     return tagId;
     
 }
@@ -58,13 +66,21 @@ int tag_send(int tag, int level, char* buffer, size_t size){
     char* msg;
     int res;
 
+    if (level<1 || level>32){
+        printk("errore. Livello inserito è errato\n");
+        return -1;
+    }
+
+    printk("!!!!-----STO DENTRO TAG SEND-----!!!!");
     int checkSize = checkBufferSize(size);
+
+    //TODO: check se size < buffer 
     if (checkSize==-1){
         printk("ERROR: msg size exceeded maximum lenght");
         return -1;
     }
 
-    printk("buffer. buffer =%s\n",buffer);
+    //printk("buffer. buffer =%s\n",buffer);
     msg = (char*) kzalloc(sizeof(char)*size, GFP_KERNEL);
     //copy_from_user(msg, buffer, size);
     strcpy(msg, buffer);
@@ -94,6 +110,7 @@ to the thread while the thread is waiting for the message.
 int tag_receive(int tag, int level, char* buffer, size_t size){
 
     int res;
+    printk("!!!!-----STO DENTRO TAG RECEIVE-----!!!!");
 
     //questo lo lascio qua cosi se livello sbagliato manco cerco tag
     if (level<1 || level>32){
@@ -117,9 +134,17 @@ int tag_receive(int tag, int level, char* buffer, size_t size){
     forse per fare check finale che effettivamente tutti i thread sono
     stati svegliati e che hanno ricevuto il messaggio
     */
-
-    waitForMessage(tag,level,buffer,size,uid);
+   
+    if (waitForMessage(tag,level,buffer,size,uid)==-1){
+        printk("waitForMessage: errore, return =-1\n");
+        return -1;
+    }
+    else{
+        printk("waitForMessage: fine funzione. buffer = %s\n",buffer);
+    }
     
+
+
     return 0;
 }
 
@@ -138,19 +163,34 @@ int tag_ctl(int tag, int command){
 
     int res;
     printk("sto in tag_ctl: hello\n");
+
+    const struct cred *cred = current_cred();
+    kuid_t uid = cred->uid;
+
+    if (command!=REMOVE && command!=AWAKE_ALL){
+        printk("ERROR in tag_ctl: command must be either REMOVE (1) or AWAKE_ALL(0)\n");
+            return -1;
+    }
     if (command==REMOVE){
 
-        res = removeTag(tag);
+        res = removeTag(tag, uid);
+        if (res==-1){
+            printk("ERROR in tag_ctl: remove è andata MALE!\n");
+            return -1;
+        }
+
+        printk("FINE in tag_ctl: rimosso tag con ID %d\n",tag);
+    } else if (command==AWAKE_ALL) {
+
+        res = checkAwakeAll(tag,uid);
+        if (res==-1){
+            printk("ERROR in tag_ctl: AWAKE_ALL è andata MALE!\n");
+            return -1;
+        }
+
+        
+
     }
-
-    if (res==-1){
-        printk("ERROR in tag_ctl: remove è andata MALE!\n");
-        return -1;
-    }
-
-    printk("FINE in tag_ctl: rimosso tag con ID %d\n",tag);
-
-    printArray();
 
     return 0;
 }
