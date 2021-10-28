@@ -1,4 +1,4 @@
-#include "../include/initStruct.h"
+#include "../include/tagService.h"
 #include "../include/utils.h"
 
 MODULE_LICENSE("GPL");
@@ -26,6 +26,7 @@ void initLevels(level_t* levelsArray[N_LEVELS],spinlock_t levelLocks[N_LEVELS]){
 
         levelsArray[i]= (level_t*) kzalloc(sizeof(level_t),GFP_KERNEL);
         levelsArray[i]->numThreadsWq=0;
+        levelsArray[i]->wakeUpCondition=0;
         spin_lock_init(&levelLocks[i]);
         
         
@@ -138,6 +139,10 @@ int checkAwakeAll(int tag, kuid_t currentUserId){
         return -1;
     }
 
+    //TODO: awake imposta condizione (non buffer) ->se buff è vuoto e cond vera è awake
+    //se buff pieno e cond falsa -> send
+    //se buff vuoto e cond falsa -> posix
+
     //recupero livelli
     level_t** tagLevels= currTag->levels;
     
@@ -149,13 +154,23 @@ int checkAwakeAll(int tag, kuid_t currentUserId){
 
         if (tagLevels[i]!=NULL){
 
+            //TODO: write lock per mettere che i thread sono 0 nel tag
+            //e poi fare check che sia 0 ???
             spin_lock(&currTag->levelLocks[i]);
+
             level_t* currLevel = tagLevels[i];
+            currLevel->wakeUpCondition=1;
             wake_up_all(&(currLevel->waitingThreads));
+
+
             spin_unlock(&currTag->levelLocks[i]);
         }
         
     }
+
+
+    printk("DOPO CICLO IN AWAKE: currTag=%d  currLevel=%d\n",currTag,currLevel);
+    printk("DOPO CICLO IN AWAKE: threads in TAG=%d\n",currTag->numThreads);
     
     read_unlock(&tagLocks[i]);
     return 0;
@@ -216,24 +231,35 @@ int waitForMessage(int tag,int level, char* buffer, size_t size, kuid_t uid){
 
     //ora metto thread in attesa di un msg 
 
+    //TODO: awake imposta condizione (non buffer) ->se buff è vuoto e cond vera è awake
+    //se buff pieno e cond falsa -> send
+    //se buff vuoto e cond falsa -> posix
+
+
     //+1 thread in sleep
     __sync_fetch_and_add(&currTag->numThreads, +1);
     __sync_fetch_and_add(&(tagLevels[myLevel]->numThreadsWq), +1);
 
-    resWaitEvent = wait_event_interruptible(tagLevels[myLevel]->waitingThreads,tagLevels[myLevel]->msg!=NULL);
+    resWaitEvent = wait_event_interruptible(tagLevels[myLevel]->waitingThreads,tagLevels[myLevel]->wakeUpCondition==1);
 
     printk("\n---dentro waitForMessage: DOPO WAIT_EVENT  -  %d thread in tag  -  %d thread in wq\n",currTag->numThreads, tagLevels[myLevel]->numThreadsWq);
 
-    if (resWaitEvent==0){
+    if (tagLevels[myLevel]->msg!=NULL&&tagLevels[myLevel]->wakeUpCondition==1){
         
-        
-        //TODO: if BUFFER==NULL -> doppia condizione con awake all anche
-        printk("dentro waitForMessage: receiver thread woke up because condition was TRUE");
+        printk("dentro waitForMessage: receiver thread woke up because of SEND\n");
         
     }
-    else {
-        //(res == -ERESTARTSYS)
+    else if (tagLevels[myLevel]->msg==NULL&&tagLevels[myLevel]->wakeUpCondition==1){
 
+        printk("dentro waitForMessage: receiver thread woke up because of AWAKE_ALL\n");
+        //-1 thread in sleep
+        __sync_fetch_and_add(&currTag->numThreads, -1);
+        __sync_fetch_and_add(&(tagLevels[myLevel]->numThreadsWq), -1);
+        return -1;
+
+    }
+    else {
+    
         //-1 thread in sleep
         __sync_fetch_and_add(&currTag->numThreads, -1);
         __sync_fetch_and_add(&(tagLevels[myLevel]->numThreadsWq), -1);
@@ -242,9 +268,6 @@ int waitForMessage(int tag,int level, char* buffer, size_t size, kuid_t uid){
 
     }
 
-    //recupero msg (cioè cosa faccio dopo che thread è stato svegliato)
-    // da field del livello
-    // TODO: size = tagLevels[myLevel]->lastSize     min(lastSize,size)
 
     int resultCopy = __copy_to_user(buffer,tagLevels[myLevel]->msg, min(tagLevels[myLevel]->lastSize,size));
 
@@ -253,24 +276,16 @@ int waitForMessage(int tag,int level, char* buffer, size_t size, kuid_t uid){
     __sync_fetch_and_add(&currTag->numThreads, -1);
     __sync_fetch_and_add(&(tagLevels[myLevel]->numThreadsWq), -1);
 
-    //printk("\ndentro waitForMessage: resultCopy = %d \n",resultCopy);
-
-    //printk("dentro waitForMessage: tagLevels[myLevel]->msg: %s\n",tagLevels[myLevel]->msg);
     printk("dentro waitForMessage: thr %d - prima copy_to_user MESSAGGIO LETTO (rcv) da thread è: %s\n",uid.val, buffer);
-
-    //strcpy(tagLevels[myLevel]->msg,buffer);
 
     printk("\ndentro waitForMessage: PRIMA IF livello%d->numThreadsWq=%d\n",myLevel,tagLevels[myLevel]->numThreadsWq);
 
     write_lock(&tagLocks[i]);
     if(tagLevels[myLevel]->numThreadsWq==0){
 
-        //printk("\ndentro waitForMessage: NELL'IF livello%d->numThreadsWq=%d\n",myLevel,tagLevels[myLevel]->numThreadsWq);
-
         spin_lock(&(currTag->levelLocks[myLevel]));
         
         printk("\ndentro waitForMessage: NELL'IF - PRIMA NULL - msg=%s\n",tagLevels[myLevel]->msg);
-        //TODO: deallocare il buffer prima di metterlo a null
         tagLevels[myLevel]->msg=NULL;
         printk("\ndentro waitForMessage: NELL'IF - DOPO NULL - msg=%s\n",tagLevels[myLevel]->msg);
 
@@ -540,7 +555,7 @@ int deliverMsg(int tagId, char* msg, int level, size_t size, kuid_t currentUserI
     if(currLevel->msg != NULL){
         spin_unlock(&currTag->levelLocks[level-1]);
         read_unlock(&tagLocks[i]);
-        printk(KERN_ERR "dentro deliverMsg: è gia in uso il tag con ID %d al livello %d questa send viene scartata\n",tagId, level-1);
+        printk(KERN_ERR "dentro deliverMsg: è gia in uso il tag con ID %d al livello %d questa send viene scartata\n",tagId, level);
         return -1;
     }
 
@@ -562,8 +577,8 @@ int deliverMsg(int tagId, char* msg, int level, size_t size, kuid_t currentUserI
     printk("dentro deliverMsg: ID = %d  currLevel->msg = %s\n",currTag->ID,currLevel->msg);
 
     //=====wait queue=====
-    //printk("dentro deliverMsg: ID = %d  currLevel->waitingThreads = %d\n",currTag->ID,currLevel->waitingThreads);
     //qui bisogna svegliare i threads
+    currLevel->wakeUpCondition=1;
     wake_up_all(&(currLevel->waitingThreads));
     
     spin_unlock(&currTag->levelLocks[level-1]);

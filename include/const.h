@@ -12,6 +12,6 @@
 #define MAX_MSG_SIZE 4096
 
 #define get     134
-#define send    174
-#define receive 182
-#define ctl     183
+#define send    156
+#define receive 174
+#define ctl     177

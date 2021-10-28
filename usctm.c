@@ -20,7 +20,7 @@
 #include <asm/apic.h>
 #include <linux/syscalls.h>
 #include "./include/vtpmo.h"
-#include "./include/my_sc.h"
+#include "./include/systemCalls.h"
 #include "./include/const.h"
 
 
@@ -246,10 +246,10 @@ int init_module(void) {
     hacked_syscall_tbl[free_entries[3]] = (unsigned long*)sys_tag_ctl;
     
     protect_memory();
-    printk("%s: sys_tag_get installed on the sys_call_table at displacement %d\n",MODNAME,FIRST_NI_SYSCALL);
-    printk("%s: sys_tag_send installed on the sys_call_table at displacement %d\n",MODNAME,SECOND_NI_SYSCALL);
-    printk("%s: sys_tag_receive installed on the sys_call_table at displacement %d\n",MODNAME,THIRD_NI_SYSCALL);
-    printk("%s: sys_tag_ctl installed on the sys_call_table at displacement %d\n",MODNAME,FOURTH_NI_SYSCALL);
+    printk("%s: sys_tag_get installed on the sys_call_table at displacement %d\n",MODNAME,free_entries[0]);
+    printk("%s: sys_tag_send installed on the sys_call_table at displacement %d\n",MODNAME,free_entries[1]);
+    printk("%s: sys_tag_receive installed on the sys_call_table at displacement %d\n",MODNAME,free_entries[2]);
+    printk("%s: sys_tag_ctl installed on the sys_call_table at displacement %d\n",MODNAME,free_entries[3]);
 #else
 #endif
 
@@ -264,10 +264,10 @@ void cleanup_module(void) {
 #ifdef SYS_CALL_INSTALL
     cr0 = read_cr0();
     unprotect_memory();
-    hacked_syscall_tbl[FIRST_NI_SYSCALL] = (unsigned long*)hacked_ni_syscall;
-    hacked_syscall_tbl[SECOND_NI_SYSCALL] = (unsigned long*)hacked_ni_syscall;
-    hacked_syscall_tbl[THIRD_NI_SYSCALL] = (unsigned long*)hacked_ni_syscall;
-    hacked_syscall_tbl[FOURTH_NI_SYSCALL] = (unsigned long*)hacked_ni_syscall;
+    hacked_syscall_tbl[free_entries[0]] = (unsigned long*)hacked_ni_syscall;
+    hacked_syscall_tbl[free_entries[1]] = (unsigned long*)hacked_ni_syscall;
+    hacked_syscall_tbl[free_entries[2]] = (unsigned long*)hacked_ni_syscall;
+    hacked_syscall_tbl[free_entries[3]] = (unsigned long*)hacked_ni_syscall;
     protect_memory();
 #else
 #endif

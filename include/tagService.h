@@ -2,7 +2,6 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/cred.h>
-//#include <linux/sched.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
 #include <linux/uaccess.h>
@@ -14,23 +13,23 @@
 typedef struct{
     
     char *msg;
-    int numThreadsWq;
-    wait_queue_head_t waitingThreads; 
-    ssize_t lastSize;  //size of last sent message to this level
+    int numThreadsWq;                   //number of threads in wait queue
+    wait_queue_head_t waitingThreads;   //wait queue
+    ssize_t lastSize;                   //size of last sent message to this level
+    int wakeUpCondition;                //condition to set before AWAKE_ALL (check in tag_receive)
 
 } level_t;
 
 typedef struct {
     int key;
     int permission;
-    kuid_t creatorUserId;   //serve per permission
+    kuid_t creatorUserId;               //serve per permission
     int ID;
     int private;
-    pid_t creatorProc;  //serve per IPC (tag privato tra i thread di stesso processo)
+    pid_t creatorProc;                  //serve per IPC (tag privato tra i thread di stesso processo)   TODO: da TOGLIERE!!!
 
-    //pointer a array per livelli
-    level_t **levels;
-    int numThreads;         //num of threads in every level's waitqueue
+    level_t **levels;                   //pointer a array per livelli
+    int numThreads;                     //num of threads in every level's waitqueue
     spinlock_t levelLocks[N_LEVELS];
 
 } tag_t;

@@ -1,4 +1,4 @@
-#include "./include/initStruct.h"
+#include "./include/tagService.h"
 #include "./include/const.h"
 #include "./include/utils.h"
 
@@ -129,17 +129,10 @@ int tag_receive(int tag, int level, char* buffer, size_t size){
 
     }
 
-    //buffer = (char*) kzalloc(sizeof(char)*size, GFP_KERNEL);
 
     const struct cred *cred = current_cred();
     kuid_t uid = cred->uid;
 
-    /*
-    perche dovrei contare num di thread che stanno nella wait queue??
-    forse per fare check finale che effettivamente tutti i thread sono
-    stati svegliati e che hanno ricevuto il messaggio
-    */
-   
     if (waitForMessage(tag,level,buffer,size,uid)==-1){
         printk("waitForMessage: errore, return =-1\n");
         return -1;
