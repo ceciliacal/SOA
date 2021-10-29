@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <stdlib.h>
+#include <pwd.h>
+#include <grp.h>
 
 typedef struct{
     

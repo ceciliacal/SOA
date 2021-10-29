@@ -60,7 +60,7 @@ int openTag(int key, kuid_t currentUserId){
     int i;
     tag_t* tag;
 
-    //TODO: check permessi 
+    printk("\n----sto dentro OPEN TAG!  key=%d\n\n",key);
     for(i=0;i<MAX_N_TAGS;i++){
 
         read_lock(&tagLocks[i]);
@@ -194,7 +194,7 @@ int waitForMessage(int tag,int level, char* buffer, size_t size, kuid_t uid){
     int i;
     tag_t* currTag = NULL; //get tag from ID
 
-    printk("---waitForMessage: level=%d\n",level);
+    //printk("---waitForMessage: level=%d\n",level);
     if (level<1 || level>32){
         printk("errore. Livello inserito è errato\n");
         return -1;
@@ -225,7 +225,7 @@ int waitForMessage(int tag,int level, char* buffer, size_t size, kuid_t uid){
         return -1;
     }
 
-    printk("dentro waitForMessage: recuperato tag con ID %d a indirizzo %d\n",tag,currTag);
+    //printk("dentro waitForMessage: recuperato tag con ID %d a indirizzo %d\n",tag,currTag);
 
     level_t** tagLevels= currTag->levels;
 
@@ -271,14 +271,13 @@ int waitForMessage(int tag,int level, char* buffer, size_t size, kuid_t uid){
 
     int resultCopy = __copy_to_user(buffer,tagLevels[myLevel]->msg, min(tagLevels[myLevel]->lastSize,size));
 
-    printk("\ndentro waitForMessage: resultCopy = %d \n",resultCopy);
+    //printk("\ndentro waitForMessage: resultCopy = %d \n",resultCopy);
     //-1 thread in sleep
+    printk("dentro waitForMessage: thr %d - prima copy_to_user MESSAGGIO LETTO (rcv) da thread è: %s\n",tagLevels[myLevel]->numThreadsWq, buffer);
     __sync_fetch_and_add(&currTag->numThreads, -1);
     __sync_fetch_and_add(&(tagLevels[myLevel]->numThreadsWq), -1);
 
-    printk("dentro waitForMessage: thr %d - prima copy_to_user MESSAGGIO LETTO (rcv) da thread è: %s\n",uid.val, buffer);
-
-    printk("\ndentro waitForMessage: PRIMA IF livello%d->numThreadsWq=%d\n",myLevel,tagLevels[myLevel]->numThreadsWq);
+    //printk("\ndentro waitForMessage: PRIMA IF livello%d->numThreadsWq=%d\n",myLevel,tagLevels[myLevel]->numThreadsWq);
 
     write_lock(&tagLocks[i]);
     if(tagLevels[myLevel]->numThreadsWq==0){
@@ -287,6 +286,8 @@ int waitForMessage(int tag,int level, char* buffer, size_t size, kuid_t uid){
         
         printk("\ndentro waitForMessage: NELL'IF - PRIMA NULL - msg=%s\n",tagLevels[myLevel]->msg);
         tagLevels[myLevel]->msg=NULL;
+        tagLevels[myLevel]->wakeUpCondition=0;
+
         printk("\ndentro waitForMessage: NELL'IF - DOPO NULL - msg=%s\n",tagLevels[myLevel]->msg);
 
         spin_unlock(&(currTag->levelLocks[myLevel]));
@@ -307,52 +308,6 @@ int waitForMessage(int tag,int level, char* buffer, size_t size, kuid_t uid){
 
 }
 
-/*
-todo: per array di lock posso fare un array dove nella struct (o dei tag)
-o dell'array di lock mantengo posizione di dove sta il tag oppure proprio
-un puntatore al tag stesso
-
-faccio array di spinlock e nella struct del tag mantengo indice  
-
-metti come id posizione in tagArray
-fai un array di 256 spinlock e 256 array da 32 spinlock
-
-perche mi serve lock del singolo tag: ad esempio se ho 
-    -due send su stesso livello: devo mettere lock su stesso livello
-    -lettura di numThreads nel tag: mi serve lock sul singolo tag
-    -remove del tag: mi serve lock su singolo tag
-*/
- /*
-int deleteLevels(tag_t tag){
-
-   
-    int i;
-
-    level_t **levels = tag->levels;
-
-    for(i=0; i<N_LEVELS; i++){
-
-        spin_lock(&(tag->levelLocks[i]));
-        //TODO: dealloco buffer del livello,
-        //nella struct livello metto puntatore al buffer = null
-        //       ==      struct livello
-        //         =     puntatore nell array dei livelli a null
-        //dealloco tutto l'array levelsArray (???)
-        //dealloco tag service
-        //metto a nulla puntatore a tag service in tagServiceArray
-
-
-
-        kfree(levels[i]);
-        
-        spin_unlock(&(tag->levelLocks[i]));
-        
-    }
-    
-
-
-}
-*/
 
 int removeTag(int tag, kuid_t currentUserId){
 
@@ -377,13 +332,15 @@ int removeTag(int tag, kuid_t currentUserId){
             //check se ci sono thread nella wq
             if (tagServiceArray[i]->numThreads==0){
 
-                //TODO: fare free dei livelli
+                //TODO: fare free dei livelli + BUFFER
                 read_unlock(&tagLocks[i]);
 
                 write_lock(&tagLocks[i]);
+
+                kfree(tagServiceArray[i]->levels);
+                tagServiceArray[i]->levels = NULL;
                 kfree(tagServiceArray[i]);
                 tagServiceArray[i] = NULL;
-                //kfree(tagServiceArray[i]);
                 
                 write_unlock(&tagLocks[i]);
                 __sync_fetch_and_add(&global_numTag, -1);
@@ -414,12 +371,7 @@ int removeTag(int tag, kuid_t currentUserId){
 
 
 
-
-/*
--se qui sto facendo CREATE, e c'è gia chiave uguale ritorno -1 (user
-deve fare la OPEN con stessa chiave)
--se key = 0, istanzio tag e procedo. 
-*/
+//TODO: togliere perm
 int addTag(int key, kuid_t userId, pid_t creatorProcessId, int perm){
 
     int i;
@@ -461,27 +413,15 @@ int addTag(int key, kuid_t userId, pid_t creatorProcessId, int perm){
     newTag->creatorUserId = userId;         //per permission
     newTag->creatorProc = creatorProcessId; //per private
     newTag->numThreads = 0;                 //n threads nelle 32 wq
-    printk("dentro addTag: newTag->creatorUserId= %d\n",newTag->creatorUserId);
-    printk("dentro addTag: newTag->creatorProc= %d\n",newTag->creatorProc);
-
+    
     //inizializzazione livelli
     initLevels(levelsArray, newTag->levelLocks);
-    
-    printk("dentro addTag: levels= %d\n",levelsArray);
-    //printk("dentro addTag:*levels= %d\n",*levels);
-
     newTag->levels = levelsArray;
-    printk("dentro addTag: newTag->levels= %d\n",newTag->levels);
-    //printk("dentro addTag: newTag->levels[5].num= %d\n",newTag->levels[5]->num);
-    
 
     //inizializzazione id
     __sync_fetch_and_add(&global_nextId, +1);
     newTag->ID = global_nextId;
-    printk("newTag->ID = %d\n", newTag->ID);
-    printk("newTag = %d\n", newTag);
 
-    printk("newTag:\n");
     for(i=0;i<MAX_N_TAGS;i++){
 
         read_lock(&tagLocks[i]);
@@ -498,7 +438,6 @@ int addTag(int key, kuid_t userId, pid_t creatorProcessId, int perm){
             tagServiceArray[i] = newTag;
             write_unlock(&tagLocks[i]);
             __sync_fetch_and_add(&global_numTag, +1);
-            //printk("tagServiceArray[%d]=%d\n",i,tagServiceArray[i]->ID);
             break;
         }
         read_unlock(&tagLocks[i]);
@@ -521,13 +460,13 @@ int deliverMsg(int tagId, char* msg, int level, size_t size, kuid_t currentUserI
     for(i=0;i<MAX_N_TAGS;i++){
 
         read_lock(&tagLocks[i]);
-        if (tagServiceArray[i]!=NULL && tagServiceArray[i]->ID == tagId){
-            //se avviene remove mentre faccio send la send va a picco 
+        
+        if (tagServiceArray[i]!=NULL && tagServiceArray[i]->ID == tagId){  
             currTag = tagServiceArray[i];
             break;
-            //printk("dentro getTagFromID: tagServiceArray[i] = %d\n", tagServiceArray[i]);
         }
         read_unlock(&tagLocks[i]);
+
     }
 
     
@@ -544,7 +483,7 @@ int deliverMsg(int tagId, char* msg, int level, size_t size, kuid_t currentUserI
         return -1;
     }
     
-    printk("dentro deliverMsg: recuperato tag con ID %d a indirizzo %d\n",tagId,currTag);
+    //printk("dentro deliverMsg: recuperato tag con ID %d a indirizzo %d\n",tagId,currTag);
         
     //recupero livello d'interesse
     level_t** tagLevels= currTag->levels;
@@ -565,7 +504,7 @@ int deliverMsg(int tagId, char* msg, int level, size_t size, kuid_t currentUserI
     
     //copy from user
     int copiati = __copy_from_user(currLevel->msg,msg,size);
-    printk(KERN_INFO "Dentro deliverMsg: copiati = %d\n", copiati);
+    //printk(KERN_INFO "Dentro deliverMsg: copiati = %d\n", copiati);
 
     if (copiati!=0){
         spin_unlock(&currTag->levelLocks[level-1]);
@@ -584,9 +523,7 @@ int deliverMsg(int tagId, char* msg, int level, size_t size, kuid_t currentUserI
     spin_unlock(&currTag->levelLocks[level-1]);
     read_unlock(&tagLocks[i]);
 
-
-    //TODO: kfree dopo che thr di quel liv non ci sono piu
-
+    //TODO: ultimo thr receiver deve fare kfree del buffer
 
     return 0;
     

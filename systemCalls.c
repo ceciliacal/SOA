@@ -2,6 +2,7 @@
 #include "./include/const.h"
 #include "./include/utils.h"
 
+//TODO: free struct nella cleanup del modulo
 
 MODULE_LICENSE("GPL");
 
@@ -30,7 +31,7 @@ int tag_get(int key, int command, int permission){
     const struct cred *cred = current_cred();
     kuid_t uid = cred->uid;
 
-    if (command=CREATE){    //create
+    if (command==CREATE){    //create
 
         pid_t pid = current->pid;
         tagId = addTag(key, uid, pid, permission);
@@ -49,6 +50,7 @@ int tag_get(int key, int command, int permission){
     return tagId;
     
 }
+
 
 /*int tag_send(int tag, int level, char* buffer, size_t size), 
 this service delivers to the TAG service with tag as the descriptor the message 
@@ -71,22 +73,15 @@ int tag_send(int tag, int level, char* buffer, size_t size){
         return -1;
     }
 
-    printk("!!!!-----STO DENTRO TAG SEND-----!!!!");
     int checkSize = checkBufferSize(size);
 
     //TODO: check se size < buffer 
+    //TODO: lock quando controllo permessi
     if (checkSize==-1){
         printk("ERROR: msg size exceeded maximum lenght");
         return -1;
     }
 
-    /*
-    //printk("buffer. buffer =%s\n",buffer);
-    msg = (char*) kzalloc(sizeof(char)*size, GFP_KERNEL);
-    //copy_from_user(msg, buffer, size);
-    strcpy(msg, buffer);
-    printk("msg allocato. msg =%s\n",msg);
-    */
 
     const struct cred *cred = current_cred();
     kuid_t uid = cred->uid;
@@ -112,7 +107,6 @@ to the thread while the thread is waiting for the message.
 int tag_receive(int tag, int level, char* buffer, size_t size){
 
     int res;
-    printk("!!!!-----STO DENTRO TAG RECEIVE-----!!!!");
 
     //questo lo lascio qua cosi se livello sbagliato manco cerco tag
     if (level<1 || level>32){
@@ -160,7 +154,6 @@ Also, the maximum size of the handled message should be of at least 4 KB.
 int tag_ctl(int tag, int command){
 
     int res;
-    printk("----------sto in tag_ctl: hello\n");
 
     const struct cred *cred = current_cred();
     kuid_t uid = cred->uid;

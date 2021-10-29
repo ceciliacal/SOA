@@ -35,12 +35,10 @@ void *receiveMsg(rcv_args_t *info){
     if ((info->buffer)[0]=='\0'){
         printf("thread %d - Syscall tag_receive result: %d   -  SUCCESS, buffer is empty\n",info->tid,res);
     }
-    //printf("Syscall tag_receive result: %d thread %d , buffer= %s\n",res, info->tid, info->buffer);
 
     pthread_exit(NULL);
 }
 
- //test4: se faccio test con level=1, poi chiamo remove del tag oppure awake all
 
 int main(int argc, char** argv){
 
