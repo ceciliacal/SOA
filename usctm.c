@@ -22,6 +22,7 @@
 #include "./include/vtpmo.h"
 #include "./include/systemCalls.h"
 #include "./include/const.h"
+#include "./include/deviceDriver.h"
 
 
 MODULE_LICENSE("GPL");
@@ -256,6 +257,8 @@ int init_module(void) {
 
     printk("%s: FATTO!!!!!!!!\n",MODNAME);
 
+    register_device();    
+
     return 0;
 }
 
@@ -271,6 +274,7 @@ void cleanup_module(void) {
     protect_memory();
 #else
 #endif
+    unregister_device();
     printk("%s: Shutting down\n",MODNAME);
 
 }

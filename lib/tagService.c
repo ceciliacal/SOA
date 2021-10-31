@@ -64,18 +64,18 @@ int openTag(int key, kuid_t currentUserId){
             tag = tagServiceArray[i];
             
             if (tag->permission == 1 && tag->creatorUserId.val!=currentUserId.val){
-                printk("openTag: permission denied\n");
+                printk(KERN_ERR"%s: openTag - permission denied\n",MODNAME);
                 read_unlock(&tagLocks[i]);
                 return -1;  //non ho permesso perche utente è diverso 
 
             }
             if (tag->private==1){   //non posso fare open di tag 
                 read_unlock(&tagLocks[i]);
-                printk("openTag: tag cannot be opened since it's private\n");
+                printk(KERN_ERR"%s: openTag - tag cannot be opened since it's private\n",MODNAME);
                 return -1;
             }
 
-            printk("openTag: returning tag id = %d\n",tag->ID);
+            printk("%s: in openTag - returning tag id = %d\n",MODNAME,tag->ID);
             read_unlock(&tagLocks[i]);
             return tag->ID;
 
@@ -109,7 +109,6 @@ int checkAwakeAll(int tag, kuid_t currentUserId){
     tag_t* currTag = NULL; //get tag from ID
     level_t* currLevel;
 
-    printk("in AWAKE_ALL\n");
     for(i=0;i<MAX_N_TAGS;i++){
         
         read_lock(&tagLocks[i]);
@@ -124,24 +123,22 @@ int checkAwakeAll(int tag, kuid_t currentUserId){
     }
 
     if (currTag==NULL){
-        printk("dentro checkAwakeAll: ERRORE, tag con ID %d not found\n",tag);
+        printk(KERN_ERR"%s: in checkAwakeAll - tag with ID %d not found\n",MODNAME,tag);
         read_unlock(&tagLocks[i]);
         return -1;
     }
 
-    if (checkCorrectCondition(currTag, currentUserId) == -1){
+    if (checkPermission(currTag, currentUserId) == -1){
+        printk(KERN_ERR"%s: in checkAwakeAll - permission denied\n",MODNAME);
         read_unlock(&tagLocks[i]);
         return -1;
     }
 
-    //recupero livelli
+    //retrieve levels
     level_t** tagLevels= currTag->levels;
     
-    //write lock su tag
+    //write lock on tag
     for (i=0;i<N_LEVELS;i++){
-
-        //per ogni livello, prendo lock su quel livello e sveglio 
-        //tutti i thread che sono in quella wq
 
         if (tagLevels[i]!=NULL){
 
@@ -158,8 +155,8 @@ int checkAwakeAll(int tag, kuid_t currentUserId){
     }
 
 
-    printk("DOPO CICLO IN AWAKE: currTag=%d  currLevel=%d\n",currTag,currLevel);
-    printk("DOPO CICLO IN AWAKE: threads in TAG=%d\n",currTag->numThreads);
+    //printk("DOPO CICLO IN AWAKE: currTag=%d  currLevel=%d\n",currTag,currLevel);
+    //printk("DOPO CICLO IN AWAKE: threads in TAG=%d\n",currTag->numThreads);
     
     read_unlock(&tagLocks[i]);
     return 0;
@@ -185,7 +182,7 @@ int waitForMessage(int tag,int level, char* buffer, size_t size, kuid_t uid){
 
     //printk("---waitForMessage: level=%d\n",level);
     if (level<1 || level>32){
-        printk("errore. Livello inserito è errato\n");
+        printk(KERN_ERR"%s: in waitForMessage - level must be in range [1,32]\n",MODNAME);
         return -1;
     }
 
@@ -205,11 +202,11 @@ int waitForMessage(int tag,int level, char* buffer, size_t size, kuid_t uid){
 
     if (currTag==NULL){
         read_unlock(&tagLocks[i]);
-        printk("dentro waitForMessage: ERRORE, tag con ID %d not found\n",tag);
+        printk(KERN_ERR"%s: in waitForMessage - tag with ID %d not found\n",MODNAME,tag);
         return -1;
     }
 
-    if(checkCorrectCondition(currTag, uid)==-1){
+    if(checkPermission(currTag, uid)==-1){
         read_unlock(&tagLocks[i]);
         return -1;
     }
@@ -225,16 +222,17 @@ int waitForMessage(int tag,int level, char* buffer, size_t size, kuid_t uid){
 
     resWaitEvent = wait_event_interruptible(tagLevels[myLevel]->waitingThreads,tagLevels[myLevel]->wakeUpCondition==1);
 
-    printk("\n---dentro waitForMessage: DOPO WAIT_EVENT  -  %d thread in tag  -  %d thread in wq\n",currTag->numThreads, tagLevels[myLevel]->numThreadsWq);
+    //printk("\n---dentro waitForMessage: DOPO WAIT_EVENT  -  %d thread in tag  -  %d thread in wq\n",currTag->numThreads, tagLevels[myLevel]->numThreadsWq);
 
     if (tagLevels[myLevel]->msg!=NULL&&tagLevels[myLevel]->wakeUpCondition==1){
         
-        printk("dentro waitForMessage: receiver thread woke up because of SEND\n");
+        printk(KERN_INFO"%s: in waitForMessage - receiver thread woke up because of SEND\n",MODNAME);
         
     }
     else if (tagLevels[myLevel]->msg==NULL&&tagLevels[myLevel]->wakeUpCondition==1){
 
-        printk("dentro waitForMessage: receiver thread woke up because of AWAKE_ALL\n");
+        printk(KERN_ERR"%s: in waitForMessage - receiver thread woke up because of AWAKE_ALL\n",MODNAME);
+
         //-1 thread in sleep
         __sync_fetch_and_add(&currTag->numThreads, -1);
         __sync_fetch_and_add(&(tagLevels[myLevel]->numThreadsWq), -1);
@@ -246,7 +244,8 @@ int waitForMessage(int tag,int level, char* buffer, size_t size, kuid_t uid){
         //-1 thread in sleep
         __sync_fetch_and_add(&currTag->numThreads, -1);
         __sync_fetch_and_add(&(tagLevels[myLevel]->numThreadsWq), -1);
-        printk("dentro waitForMessage: receiver thread woke up by a signal");
+        printk(KERN_ERR"%s: in waitForMessage - receiver thread woke up by a signal\n",MODNAME);
+
         return -1;
 
     }
@@ -309,7 +308,7 @@ int removeTag(int tag, kuid_t currentUserId){
         
         if (tagServiceArray[i]!=NULL && tagServiceArray[i]->ID==tag){
 
-            if (checkCorrectCondition(tagServiceArray[i], currentUserId) == -1){
+            if (checkPermission(tagServiceArray[i], currentUserId) == -1){
                 read_unlock(&tagLocks[i]);
                 return -1;
             }         
@@ -462,7 +461,7 @@ int deliverMsg(int tagId, char* msg, int level, size_t size, kuid_t currentUserI
     }
 
 
-    if (checkCorrectCondition(currTag, currentUserId) == -1){
+    if (checkPermission(currTag, currentUserId) == -1){
         read_unlock(&tagLocks[i]);
         return -1;
     }

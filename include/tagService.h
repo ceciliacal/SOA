@@ -6,11 +6,13 @@
 #include <linux/spinlock.h>
 #include <linux/uaccess.h>
 #include <linux/wait.h>
+#include <linux/string.h>
 #include <linux/rwlock.h>
 #include <linux/rwlock_api_smp.h>
 #include <linux/device.h>
 #include <linux/cdev.h>
 #include <linux/fs.h>
+#include <linux/init.h>
 
 #include "const.h"
 

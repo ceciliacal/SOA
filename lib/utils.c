@@ -2,7 +2,7 @@
 
 MODULE_LICENSE("GPL");
 
-int checkCorrectCondition(tag_t* tag, kuid_t currentUserId){
+int checkPermission(tag_t* tag, kuid_t currentUserId){
 
     if (tag->permission == 1 && tag->creatorUserId.val != currentUserId.val){
         printk("errore. Utente %d non ha permesso di utilizzare questo tag\n", currentUserId);

@@ -2,8 +2,9 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <stdlib.h>
-#include <pwd.h>
-#include <grp.h>
+#include <string.h>
+#include <fcntl.h>
+#include <sys/ioctl.h>
 
 typedef struct{
     
@@ -15,7 +16,7 @@ typedef struct{
     size_t size;
     
 
-} rcv_args_t;
+} send_rcv_args_t;
 
 
 

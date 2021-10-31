@@ -1,5 +1,5 @@
-#include "tagService.h"
-#include "deviceDriver.h"
+#include "../include/tagService.h"
+#include "../include/deviceDriver.h"
 
 MODULE_LICENSE("GPL");
 
@@ -11,55 +11,37 @@ int maxSizeLine = 32;   //1 line of device file should be 20 bytes
 //1 line = 20 bytes -> 4bytes*4field (key,uid.val,level,nThreads) + 3bytes for space(char) + 1byte(\n)
 
 
-//dev_t sarebbe MKDEV
-
-//Declaration of deviceDriver functions
-static int devOpen (struct inode *, struct file *);
-static ssize_t devRead (struct file *, char __user *, size_t, loff_t *);
-static ssize_t devWrite (struct file *, const char __user *, size_t, loff_t *);
-static int devRelease (struct inode *, struct file *);
-
 static struct file_operations fileOps = {
-    .owner =    THIS_MODULE;
-    .read  =   devRead;
-    .write =    devWrite;
-    .open  =     devOpen;
-    .release =  devRelease;
-}
-
-/*
-int (*flush) (struct file *, fl_owner_t id);
-loff_t (*llseek) (struct file *, loff_t, int);
-long (*unlocked_ioctl) (struct file *, unsigned int, unsigned long);  
+    .owner =    THIS_MODULE,
+    .read  =    devRead,
+    .write =    devWrite,
+    .open  =    devOpen,
+    .release =  devRelease
+};
 
 
-dentro a init module va chiamata funzione register_chrdev (che va implementata qui)
-e poi nella exit va chiamata unregister che fa la free del major number
-*/
-
-static int devOpen (struct inode *, struct file *){
+static int devOpen (struct inode *inode, struct file *file){
     //serve per inizializzare variabili del driver
-    //success
     return 0;
 }
 
-static int devRelease (struct inode *, struct file *){
+static int devRelease (struct inode *inode, struct file *file){
     //free delle variabili del driver e della memoria usata
     return 0;
 }
 
-ssize_t devWrite (struct file *, const char __user *, size_t, loff_t *off){
-    printk("device driver is read only\n");
+ssize_t devWrite (struct file *filp, const char __user *buff, size_t len, loff_t *off){
+    printk(KERN_ERR"%s:Device %s is read only\n",MODNAME,DEVICE_NAME);
     return -1;
 }
 
 char* myAppend(char* dest, char* src){
 
     // Determine new size
-    int newSize = strlen(dest)  + strlen(src) + 1; 
+    int newSize = strlen(dest) + strlen(src) + 1; 
 
     // Allocate new buffer
-    char* newBuffer = malloc(newSize*sizeof(char));
+    char* newBuffer = kzalloc(newSize*sizeof(char), GFP_KERNEL);
 
     // do the copy and concat
     strcat(newBuffer,dest);
@@ -68,34 +50,35 @@ char* myAppend(char* dest, char* src){
     return newBuffer;
 }
 
-static ssize_t devRead (struct file *filp, char __user *buf, size_t size, loff_t *off){
 
-    int i, j, devBufferSize;
+static ssize_t devRead (struct file *filp, char __user *buff, size_t len, loff_t *off){
+
+    int i, j, devBufferSize, ret;
     char* header, devBuffer;
 
-    printk("%s: somebody called a read on dev with major number %d\n",MODNAME,get_major(filp));
+    printk("%s: sto in devRead!!!!!!!\n",MODNAME);
 
 
-    if(size<0 || buf==NULL || off<0){
+    if(len<0 || buff==NULL || off<0){
         printk(KERN_ERR"%s: size cannot be negative\n",MODNAME);
         return -1;
     }
 
-    if(size==0){
+    if(len==0){
         return 0;
     }
 
-    tag_t* tags = getTagServiceArray();
-    rwlock_t tagLocks[MAX_N_TAGS] = getTagLocks();
+    tag_t **tags;
+    tags = getTagServiceArray();
+    
+    //rwlock_t tagLocks = getTagLocks();
+    rwlock_t *tagLocks;
+    tagLocks = getTagLocks();
 
     //header - 64 bytes
-    header = kzalloc(sizeof(char)*maxSizeLine,GFP_KERNEL);
+    header = "key uid level threads\n";
     devBuffer = header;
 
-    if(header==NULL){
-        printk(KERN_ERR"%s: Error in buffer allocation\n",MODNAME);
-    }
-    sprintf("%s\n","key uid level threads");
 
     for (i=0;i<MAX_N_TAGS;i++){
 
@@ -111,21 +94,21 @@ static ssize_t devRead (struct file *filp, char __user *buf, size_t size, loff_t
                 //check if there is any waiting thread on that level
                 if(currLevel->numThreadsWq>0){
 
-                    char* tempLine = kzalloc*(sizeof(char)*maxSizeLine,GFP_KERNEL);
-                    sprintf(tempLine,"%-20d %-20d %-20d %-20d\n",tags[i]->key,tags[i]->creatorUserId.val,currLevel->number,currLevel->numThreadsWq);
-
-                    char* line = myAppend(devBuffer,tempLine);
-
-                    kfree(tempLine);
+                    char* tempLine = kzalloc(sizeof(char)*maxSizeLine,GFP_KERNEL);
                     
-                    if (line==NULL){
+                    if (tempLine==NULL){
                         printk(KERN_ERR"%s: Error in buffer allocation\n",MODNAME);
                         spin_unlock(&tags[i]->levelLocks[j]);
                         read_unlock(&tagLocks[i]);
                         return -1;
                     }
+                    
+                    sprintf(tempLine,"%-20d %-20d %-20d %-20d\n",tags[i]->key,tags[i]->creatorUserId.val,currLevel->number,currLevel->numThreadsWq);
 
-                    devBuffer = line;
+                    devBuffer = myAppend(devBuffer,tempLine);
+
+                    kfree(tempLine);
+
                 }
                 
                 spin_unlock(&tags[i]->levelLocks[j]);
@@ -136,7 +119,7 @@ static ssize_t devRead (struct file *filp, char __user *buf, size_t size, loff_t
 
     devBufferSize = strlen(devBuffer);
     printk(KERN_INFO"%s: devBufferSize=%d\n",MODNAME,devBufferSize);
-    
+
     if((devBufferSize - *off) < len) len = devBufferSize - *off;
     ret = copy_to_user(buff,&(devBuffer),len);
 
@@ -157,7 +140,7 @@ void unregister_device(void){
 
 int register_device(void){
     
-    major = register_chrdev(0, DEVICE_NAME, &fops);
+    major = register_chrdev(0, DEVICE_NAME, &fileOps);
 
 	if (major < 0) {
 	  printk(KERN_ERR"%s: Cannot obtain major number\n",MODNAME);
