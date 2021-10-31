@@ -1,4 +1,5 @@
 #include "user.h"
+#include "../include/const.h"
 
 char buff[4096];
 
@@ -11,7 +12,7 @@ void * the_thread(void* path){
 	sleep(1);
 
 	printf("opening device %s\n",device);
-	fd = open(device,O_RDWR);
+	fd = open(device,O_RDONLY);
 	if(fd == -1) {
 		printf("open error on device %s\n",device);
 		return NULL;
@@ -38,8 +39,8 @@ int main(int argc, char** argv){
 
     int id = syscall(get,0,CREATE,NO_PERMISSION);
     char* bufferRcv = malloc(sizeof(char)*10);
-    int res = syscall(receive,id,1,bufferRcv,10);
-    printf("receive res= %d\n",res);
+    //int res = syscall(receive,id,1,bufferRcv,10);
+    //printf("receive res= %d\n",res);
 
     path = argv[1];
     major = strtol(argv[2],NULL,10);

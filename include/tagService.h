@@ -50,4 +50,5 @@ void initTagLocks(void);
 int checkAwakeAll(int tag, kuid_t currentUserId);
 tag_t** getTagServiceArray(void);
 rwlock_t* getTagLocks(void);
+void cleanupTagService(void);
 

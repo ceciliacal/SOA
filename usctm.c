@@ -23,6 +23,7 @@
 #include "./include/systemCalls.h"
 #include "./include/const.h"
 #include "./include/deviceDriver.h"
+#include "./include/tagService.h"
 
 
 MODULE_LICENSE("GPL");
@@ -274,6 +275,8 @@ void cleanup_module(void) {
     protect_memory();
 #else
 #endif
+
+    cleanupTagService();
     unregister_device();
     printk("%s: Shutting down\n",MODNAME);
 

@@ -1,9 +1,11 @@
+#include "../include/const.h"
 #include "user.h"
+#include <string.h>
 
 int numReceivers = 5;
 
 
-void *sendMsg(send_rcv_args_t *info)
+void *sendMsg(rcv_args_t *info)
 {
     printf("Before syscall tag_send: thread %d sending msg = %s %s\n",info->tid, info->buffer);
     int r=syscall(send,info->tag,info->level,info->buffer,info->size);
@@ -13,7 +15,7 @@ void *sendMsg(send_rcv_args_t *info)
     pthread_exit(NULL);
 }
 
-void *receiveMsg(send_rcv_args_t *info){
+void *receiveMsg(rcv_args_t *info){
     
     printf("Before syscall tag_receive: thread %d , buffer= %s\n",info->tid, info->buffer);
     int res = syscall(receive,info->tag,info->level,info->buffer,info->size);
@@ -26,19 +28,19 @@ int main(int argc, char** argv){
 
     int i;
     pthread_t tid[numReceivers];
-    size_t size = 10;
-    send_rcv_args_t *info[numReceivers];
+    size_t size = 9;
+    rcv_args_t *info[numReceivers];
 
-    char* msgToSent = "cacca";
+    char* msgToSent = "hello";
     
     int id = syscall(get,0,CREATE,NO_PERMISSION);
 
-    //test1: 5 thread receivers concorrenti leggono messaggio mandato da un sender su stesso tag e stesso livello
+    //test: 5 thread concurrent receiver threads read message sent on same tag same level
     
     for (i=0; i<numReceivers; i++){
 
-        info[i] = malloc(sizeof(send_rcv_args_t));
-        char* buffer = malloc(sizeof(char)*10);
+        info[i] = malloc(sizeof(rcv_args_t));
+        char* buffer = malloc(sizeof(char)*size);
         
         info[i]->buffer=buffer;
         info[i]->size=size;
@@ -56,10 +58,10 @@ int main(int argc, char** argv){
     int r=syscall(send,id,1,msgToSent,size);
 
     if (r==0){
-        printf("sendMsg: tag_send r andata BENE!  buffer= %s\n", msgToSent);
+        printf("tag_send: tag_send was successful!  buffer= %s\n", msgToSent);
     }
     else{
-        printf("tag_send result: r %d. NON è andata bene!\n",r);
+        printf("tag_send failed!\n",r);
     }
     
 

@@ -5,7 +5,7 @@ MODULE_LICENSE("GPL");
 int checkPermission(tag_t* tag, kuid_t currentUserId){
 
     if (tag->permission == 1 && tag->creatorUserId.val != currentUserId.val){
-        printk("errore. Utente %d non ha permesso di utilizzare questo tag\n", currentUserId);
+        printk(KERN_ERR"%s: checkPermission ERROR: permission denied to user %d\n",MODNAME,currentUserId.val);
         return -1;
     }
 
@@ -15,18 +15,19 @@ int checkPermission(tag_t* tag, kuid_t currentUserId){
 
 int checkBufferSize(size_t size){
 
+
+
     if (size<0){
-        printk("ERROR: insert msg size between 0 and %d\n",MAX_MSG_SIZE);
+        printk(KERN_ERR"%s: checkBufferSize ERROR: insert msg size between 0 and %d\n",MODNAME,MAX_MSG_SIZE);
         return -1;
     }
 
-    if (size>MAX_MSG_SIZE){
-        printk("ERROR: msg size exceeded maximum lenght\n");
+    if (4096<size){
+        printk(KERN_ERR"%s: checkBufferSize ERROR: msg size exceeded maximum lenght\n",MODNAME);
         return -1;
     }
 
     if (size == 0){
-        printk("tag_receive, sto in checkBufferSize: size=0\n");
         return 1;
     }
 
