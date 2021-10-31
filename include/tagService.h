@@ -8,6 +8,10 @@
 #include <linux/wait.h>
 #include <linux/rwlock.h>
 #include <linux/rwlock_api_smp.h>
+#include <linux/device.h>
+#include <linux/cdev.h>
+#include <linux/fs.h>
+
 #include "const.h"
 
 typedef struct{
@@ -17,6 +21,7 @@ typedef struct{
     wait_queue_head_t waitingThreads;   //wait queue
     ssize_t lastSize;                   //size of last sent message to this level
     int wakeUpCondition;                //condition to set before AWAKE_ALL (check in tag_receive)
+    int number;                         //level number (1...32)
 
 } level_t;
 
@@ -26,7 +31,6 @@ typedef struct {
     kuid_t creatorUserId;               //serve per permission
     int ID;
     int private;
-    pid_t creatorProc;                  //serve per IPC (tag privato tra i thread di stesso processo)   TODO: da TOGLIERE!!!
 
     level_t **levels;                   //pointer a array per livelli
     int numThreads;                     //num of threads in every level's waitqueue
@@ -34,7 +38,7 @@ typedef struct {
 
 } tag_t;
 
-int addTag(int key, kuid_t userId, pid_t creatorProcessId, int perm);
+int addTag(int key, kuid_t userId, int perm);
 int openTag(int key, kuid_t currentUserId);
 int deliverMsg(int tagId, char* msg, int level, size_t size, kuid_t currentUserId);
 int removeTag(int tag, kuid_t currentUserId);
@@ -42,4 +46,6 @@ void printArray(void);
 int waitForMessage(int tag,int myLevel, char* buffer, size_t size,kuid_t uid);
 void initTagLocks(void);
 int checkAwakeAll(int tag, kuid_t currentUserId);
+tag_t** getTagServiceArray(void);
+rwlock_t* getTagLocks(void);
 

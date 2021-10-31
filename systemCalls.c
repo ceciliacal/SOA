@@ -34,7 +34,7 @@ int tag_get(int key, int command, int permission){
     if (command==CREATE){    //create
 
         pid_t pid = current->pid;
-        tagId = addTag(key, uid, pid, permission);
+        tagId = addTag(key, uid, permission);
         printk("in tag_get: CREATE -> tagId = %d\n",tagId);
 
     }
@@ -75,9 +75,10 @@ int tag_send(int tag, int level, char* buffer, size_t size){
 
     int checkSize = checkBufferSize(size);
 
-    //TODO: check se size < buffer 
-    //TODO: lock quando controllo permessi
-    if (checkSize==-1){
+    if (checkSize==1){
+        size = 1;
+    }
+    else{
         printk("ERROR: msg size exceeded maximum lenght");
         return -1;
     }
@@ -89,6 +90,7 @@ int tag_send(int tag, int level, char* buffer, size_t size){
     res = deliverMsg(tag, buffer, level, size, uid);
 
     if (res==-1){
+        
         printk("ERROR: error during deliver msg");
         return -1;
     }

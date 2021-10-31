@@ -15,3 +15,5 @@
 #define send    156
 #define receive 174
 #define ctl     177
+
+#define MODNAME "TAG"

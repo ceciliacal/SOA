@@ -2,20 +2,8 @@
 #include "user.h"
 #include <string.h>
 
-int numReceivers = 5;
-int numSenders = 2;
-
-/*
-TODO: testare
-    -rcv su due livelli diversi di stesso tag
-    - permessi?!
-    -3 msg diversi di fila
-    - for con le send
-    -size?!
-    -testare awake all dopo sleep (1 rcv, sleep, awake all)
-    -casistiche tag get con permessi, open ecc
-    -rmv quando ci sono thread nella wq
-*/
+int numReceivers = 15;
+int numSenders = 5;
 
 
 void *sendMsg(rcv_args_t *info)
