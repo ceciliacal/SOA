@@ -1,4 +1,3 @@
-#include "../include/const.h"
 #include "user.h"
 #include <string.h>
 
@@ -17,7 +16,7 @@ TODO: testare
     -rmv quando ci sono thread nella wq
 */
 
-void *sendMsg(rcv_args_t *info)
+void *sendMsg(send_rcv_args_t *info)
 {
     printf("Before syscall tag_send: thread %d sending msg = %s %s\n",info->tid, info->buffer);
     int res=syscall(send,info->tag,info->level,info->buffer,info->size);
@@ -27,7 +26,7 @@ void *sendMsg(rcv_args_t *info)
     pthread_exit(NULL);
 }
 
-void *receiveMsg(rcv_args_t *info){
+void *receiveMsg(send_rcv_args_t *info){
     
     printf("Before syscall tag_receive: thread %d , buffer= %s\n",info->tid, info->buffer);
     int res = syscall(receive,info->tag,info->level,info->buffer,info->size);
@@ -46,7 +45,7 @@ int main(int argc, char** argv){
     pthread_t tidR[numReceivers];
     pthread_t tidS[numSenders];
     size_t size = 10;
-    rcv_args_t *info[numReceivers];
+    send_rcv_args_t *info[numReceivers];
 
     //create tag
     int id = syscall(get,0,CREATE,NO_PERMISSION);
@@ -54,7 +53,7 @@ int main(int argc, char** argv){
     //spawn receiver threads
     for (i=0; i<numReceivers; i++){
 
-        info[i] = malloc(sizeof(rcv_args_t));
+        info[i] = malloc(sizeof(send_rcv_args_t));
         char* buffer = malloc(sizeof(char)*10);
         
         info[i]->buffer=buffer;
@@ -73,7 +72,7 @@ int main(int argc, char** argv){
     //spawn sender threads
     for (i=0; i<2; i++){
 
-        info[i] = malloc(sizeof(rcv_args_t));
+        info[i] = malloc(sizeof(send_rcv_args_t));
 
         //same msg per iteration
         info[i]->buffer= "test msg";    

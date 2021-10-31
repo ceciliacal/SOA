@@ -1,9 +1,6 @@
 #include "user.h"
 
-int i;
 char buff[4096];
-#define DATA "ciao a tutti\n"
-#define SIZE strlen(DATA)
 
 void * the_thread(void* path){
 
@@ -39,13 +36,18 @@ int main(int argc, char** argv){
         return -1;
     }
 
+    int id = syscall(get,0,CREATE,NO_PERMISSION);
+    char* bufferRcv = malloc(sizeof(char)*10);
+    int res = syscall(receive,id,1,bufferRcv,10);
+    printf("receive res= %d\n",res);
+
     path = argv[1];
     major = strtol(argv[2],NULL,10);
     printf("creating device %s with major %d\n",path,major);
 
    
-    sprintf(buff,"mknod %s c %d 0\n",path,major);
-    system(buff);
+    //sprintf(buff,"mknod %s c %d 0\n",path,major);
+    //system(buff);
 
     sprintf(buff,"%s",path);
     pthread_create(&tid,NULL,the_thread,strdup(buff));

@@ -1,10 +1,9 @@
-#include "../include/const.h"
 #include "user.h"
 #include <string.h>
 
 
 // The function to be executed by all threads
-void *receiveMsg(rcv_args_t *info){
+void *receiveMsg(send_rcv_args_t *info){
 
     printf("PRIMA tag_receive: thread %d , buffer= %s\n",info->tid, info->buffer);
     int res = syscall(receive,info->tag,info->level,info->buffer,info->size);
@@ -16,7 +15,7 @@ void *receiveMsg(rcv_args_t *info){
 int main(int argc, char** argv){
 
     int i;
-    size_t size = 10;
+    size_t size = 1000;
 
     //char* msgToSent = "cacca";
     char* buffer = malloc(sizeof(char)*size);

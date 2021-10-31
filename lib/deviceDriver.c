@@ -3,11 +3,9 @@
 
 MODULE_LICENSE("GPL");
 
-static struct cdev cdev;
-static struct class devClass;
 static int major;
 
-int maxSizeLine = 32;   //1 line of device file should be 20 bytes
+int maxSizeLine = 100;   //1 line of device file should be 20 bytes
 //1 line = 20 bytes -> 4bytes*4field (key,uid.val,level,nThreads) + 3bytes for space(char) + 1byte(\n)
 
 
@@ -30,7 +28,7 @@ static int devRelease (struct inode *inode, struct file *file){
     return 0;
 }
 
-ssize_t devWrite (struct file *filp, const char __user *buff, size_t len, loff_t *off){
+ssize_t devWrite (struct file *filp, const char *buff, size_t len, loff_t *off){
     printk(KERN_ERR"%s:Device %s is read only\n",MODNAME,DEVICE_NAME);
     return -1;
 }
@@ -39,22 +37,31 @@ char* myAppend(char* dest, char* src){
 
     // Determine new size
     int newSize = strlen(dest) + strlen(src) + 1; 
-
+    printk(KERN_INFO"%s: newSize is %d\n",MODNAME, newSize);
+    
     // Allocate new buffer
     char* newBuffer = kzalloc(newSize*sizeof(char), GFP_KERNEL);
-
+    if (newBuffer==NULL){
+        printk(KERN_ERR"%s: Error in new line buffer allocation\n",MODNAME);
+        return NULL;
+    }
+    
     // do the copy and concat
-    strcat(newBuffer,dest);
+    strcpy(newBuffer,dest);
     strcat(newBuffer,src);
 
+    printk(KERN_INFO "%s: buffer is: %s\n",MODNAME,newBuffer);
+    
     return newBuffer;
 }
 
 
-static ssize_t devRead (struct file *filp, char __user *buff, size_t len, loff_t *off){
+static ssize_t devRead (struct file *filp, char *buff, size_t len, loff_t *off){
 
     int i, j, devBufferSize, ret;
-    char* header, devBuffer;
+    char* header;
+    char* devBuffer;
+    char* newBuffer;
 
     printk("%s: sto in devRead!!!!!!!\n",MODNAME);
 
@@ -63,10 +70,12 @@ static ssize_t devRead (struct file *filp, char __user *buff, size_t len, loff_t
         printk(KERN_ERR"%s: size cannot be negative\n",MODNAME);
         return -1;
     }
+    printk("%s: dopo 1 if!!!!!!!\n",MODNAME);
 
     if(len==0){
         return 0;
     }
+    printk("%s: dopo 2 if!!!!!!!\n",MODNAME);
 
     tag_t **tags;
     tags = getTagServiceArray();
@@ -75,24 +84,29 @@ static ssize_t devRead (struct file *filp, char __user *buff, size_t len, loff_t
     rwlock_t *tagLocks;
     tagLocks = getTagLocks();
 
+    printk("%s: dopo array di merdaaaaaaaaaaa\n",MODNAME);
+
     //header - 64 bytes
     header = "key uid level threads\n";
-    devBuffer = header;
+    newBuffer = header;
 
+
+    printk("%s: dopo header\n",MODNAME);
 
     for (i=0;i<MAX_N_TAGS;i++){
 
         read_lock(&tagLocks[i]);
 
-        if (tags[i]!=NULL){
+        if (tags[i]!= NULL){
             
             for (j=0;j<N_LEVELS;j++){
 
                 spin_lock(&tags[i]->levelLocks[j]);
                 level_t* currLevel = tags[i]->levels[j];
+                printk("%s: currLevel num=%d\n",MODNAME,currLevel->number);
                 
                 //check if there is any waiting thread on that level
-                if(currLevel->numThreadsWq>0){
+                if(currLevel->numThreadsWq > 0 ){
 
                     char* tempLine = kzalloc(sizeof(char)*maxSizeLine,GFP_KERNEL);
                     
@@ -102,26 +116,30 @@ static ssize_t devRead (struct file *filp, char __user *buff, size_t len, loff_t
                         read_unlock(&tagLocks[i]);
                         return -1;
                     }
-                    
-                    sprintf(tempLine,"%-20d %-20d %-20d %-20d\n",tags[i]->key,tags[i]->creatorUserId.val,currLevel->number,currLevel->numThreadsWq);
 
-                    devBuffer = myAppend(devBuffer,tempLine);
+                    int h = sprintf(tempLine,"%-5d %-5d %-5d %-5d\n",tags[i]->key,tags[i]->creatorUserId.val,currLevel->number,currLevel->numThreadsWq);
+                    
+                    printk("res linea h= %d\n",h);
+                    devBuffer = myAppend(newBuffer,tempLine);
 
                     kfree(tempLine);
-
-                }
+                    newBuffer = devBuffer;
                 
+                }
+
                 spin_unlock(&tags[i]->levelLocks[j]);
+                
             }
         }
         read_unlock(&tagLocks[i]);
     }
 
+    printk("%s: CACA4\n",MODNAME);
     devBufferSize = strlen(devBuffer);
     printk(KERN_INFO"%s: devBufferSize=%d\n",MODNAME,devBufferSize);
 
     if((devBufferSize - *off) < len) len = devBufferSize - *off;
-    ret = copy_to_user(buff,&(devBuffer),len);
+    ret = copy_to_user(buff,&(devBuffer[*off]),len);
 
     *off += (len - ret);
 
@@ -148,6 +166,7 @@ int register_device(void){
 	}
 
 	printk(KERN_INFO "%s: mychardev registered, it is assigned major number %d\n", MODNAME,major);
+
 
     /*
     dev_t dev;

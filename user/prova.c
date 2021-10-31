@@ -14,9 +14,7 @@ int** getTagServiceArray(){
 int main(){
 
     printf("tagServiceArray=%d\n",tagServiceArray);
-    char* k = "ciao come va?\nbene tu?\0 ciaooo  ";
-    printf("strlen: %d\n",strlen(k));
-
+    
     for(int i;i<10;i++){
         tagServiceArray[i]=i;
     }

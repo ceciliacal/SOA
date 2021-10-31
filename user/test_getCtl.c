@@ -1,4 +1,3 @@
-#include "../include/const.h"
 #include "user.h"
 
 int removingId = 2;          //tag ID to remove
