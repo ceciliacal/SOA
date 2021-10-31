@@ -2,6 +2,8 @@
 #include "../include/deviceDriver.h"
 
 MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Cecilia Calavaro <cecilia.calavaro@uniroma2.it>");
+MODULE_DESCRIPTION("TAG_SERVICE");
 
 static int major;
 

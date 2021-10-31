@@ -1,6 +1,8 @@
 #include "../include/tagService.h"
 
 MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Cecilia Calavaro <cecilia.calavaro@uniroma2.it>");
+MODULE_DESCRIPTION("TAG_SERVICE");
 
 int checkPermission(tag_t* tag, kuid_t currentUserId){
 

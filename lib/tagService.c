@@ -2,6 +2,8 @@
 #include "../include/utils.h"
 
 MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Cecilia Calavaro <cecilia.calavaro@uniroma2.it>");
+MODULE_DESCRIPTION("TAG_SERVICE");
 
 tag_t *tagServiceArray[MAX_N_TAGS];
 int global_nextId = 0;
