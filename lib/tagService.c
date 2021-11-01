@@ -9,8 +9,6 @@ tag_t *tagServiceArray[MAX_N_TAGS];
 int global_nextId = 0;
 int global_numTag = 0;
 
-rwlock_t numTagLock;
-
 rwlock_t tagLocks[MAX_N_TAGS];
 
 tag_t** getTagServiceArray(void){

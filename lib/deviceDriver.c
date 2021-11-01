@@ -7,8 +7,7 @@ MODULE_DESCRIPTION("TAG_SERVICE");
 
 static int major;
 
-int maxSizeLine = 100;   //1 line of device file should be 20 bytes
-//1 line = 20 bytes -> 4bytes*4field (key,uid.val,level,nThreads) + 3bytes for space(char) + 1byte(\n)
+int maxSizeLine = 100;   
 
 
 static struct file_operations fileOps = {
@@ -95,7 +94,7 @@ static ssize_t devRead (struct file *filp, char *buff, size_t len, loff_t *off){
 
                 spin_lock(&tags[i]->levelLocks[j]);
                 level_t* currLevel = tags[i]->levels[j];
-                //printk("%s: currLevel num=%d\n",MODNAME,currLevel->number);
+                
                 
                 //check if there is any waiting thread on that level
                 if(currLevel->numThreadsWq > 0 ){
@@ -111,7 +110,6 @@ static ssize_t devRead (struct file *filp, char *buff, size_t len, loff_t *off){
 
                     sprintf(tempLine,"%-5d %-5d %-5d %-5d\n",tags[i]->key,tags[i]->creatorUserId.val,currLevel->number,currLevel->numThreadsWq);
                     
-                    //printk("res linea h= %d\n",h);
                     devBuffer = myAppend(newBuffer,tempLine);
 
                     kfree(tempLine);
